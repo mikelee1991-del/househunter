@@ -1,0 +1,42 @@
+name: Daily listing ingest
+
+on:
+  schedule:
+    # 15:00 UTC ≈ 8:00 AM PT
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Ingest listings
+        env:
+          RENTCAST_API_KEY: ${{ secrets.RENTCAST_API_KEY }}
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          RAPIDAPI_REALTOR_HOST: ${{ secrets.RAPIDAPI_REALTOR_HOST }}
+        run: npm run ingest
+
+      - name: Commit updated listings
+        run: |
+          git config user.name "househunter-bot"
+          git config user.email "househunter-bot@users.noreply.github.com"
+          git add public/data/listings.json
+          if git diff --staged --quiet; then
+            echo "No listing changes"
+          else
+            git commit -m "chore: refresh listings ($(date -u +%Y-%m-%d))"
+            git push
+          fi
