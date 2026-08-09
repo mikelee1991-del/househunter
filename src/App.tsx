@@ -89,11 +89,16 @@ export default function App() {
     viewshedById,
   ]);
 
-  const matches = scored.filter((l) => l.flagged);
-  const visible = showFlaggedOnly ? matches : scored;
+  // Never show over-budget / under-beds / incomplete homes in map or list
+  const eligible = scored.filter((l) => !l.coreRejected);
+  const matches = eligible.filter((l) => l.flagged);
+  const visible = showFlaggedOnly ? matches : eligible;
   const flaggedCount = matches.length;
-  const top = matches[0] ?? scored[0];
-  const selected = scored.find((l) => l.id === selectedId) ?? top;
+  const top = matches[0] ?? eligible[0] ?? scored[0];
+  const selected =
+    visible.find((l) => l.id === selectedId) ??
+    eligible.find((l) => l.id === selectedId) ??
+    top;
 
   return (
     <div className="app">
@@ -103,7 +108,7 @@ export default function App() {
         onCriteriaChange={setCriteria}
         onAnchorsChange={setAnchors}
         flaggedCount={flaggedCount}
-        totalCount={scored.length}
+        totalCount={eligible.length}
         isoMode={isoMode}
         isoProgress={isoProgress}
         isoError={isoError}
@@ -166,22 +171,20 @@ export default function App() {
           <MapView
             anchors={anchors}
             isochrones={isochrones}
-            listings={scored}
-            focusListings={showFlaggedOnly ? matches : scored}
+            listings={visible}
             selectedId={selectedId}
             onSelect={setSelectedId}
             showNoise={showNoise}
             showIsochrones={showIsochrones && isoMode !== "loading"}
             livabilityOverlay={livabilityOverlay}
             safetyTracts={safetyTracts}
-            dimNonMatches={showFlaggedOnly}
           />
         </div>
 
         <section className="results">
           <div className="results-top">
             <LivabilityScatter
-              listings={scored}
+              listings={eligible}
               criteria={criteria}
               selectedId={selected?.id ?? null}
               onSelect={setSelectedId}
@@ -245,7 +248,7 @@ export default function App() {
             <p className="results-count">
               {showFlaggedOnly
                 ? `${flaggedCount} home${flaggedCount === 1 ? "" : "s"} fit your criteria`
-                : `Showing all ${visible.length} active homes (${flaggedCount} match)`}
+                : `Showing ${visible.length} in budget / size (${flaggedCount} full match)`}
             </p>
           )}
           {!loading && !error && visible.length === 0 && (

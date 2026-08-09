@@ -103,6 +103,8 @@ export interface ScoredListing extends Listing {
   score: number;
   matchReasons: string[];
   failReasons: string[];
+  /** Failed budget / beds / baths / sqft / status / SFR / garage / etc. */
+  coreRejected: boolean;
   flagged: boolean;
   driveMinutesEstimate: Record<AnchorId, number>;
   safetyScore?: number;

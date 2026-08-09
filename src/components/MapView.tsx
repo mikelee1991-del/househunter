@@ -64,19 +64,9 @@ function anchorIcon(color: string) {
   });
 }
 
-function homeIcon(
-  listing: ScoredListing,
-  selected: boolean,
-  dimmed: boolean,
-) {
+function homeIcon(listing: ScoredListing, selected: boolean) {
   const price = `$${(listing.price / 1e6).toFixed(2)}M`;
-  const state = selected
-    ? "is-selected"
-    : listing.flagged
-      ? "is-match"
-      : dimmed
-        ? "is-dimmed"
-        : "";
+  const state = selected ? "is-selected" : listing.flagged ? "is-match" : "";
   return L.divIcon({
     className: `home-marker ${state}`,
     html: `
@@ -111,42 +101,34 @@ interface Props {
   anchors: Anchor[];
   isochrones: IsochroneMap;
   listings: ScoredListing[];
-  /** Bounds focus — usually matches when "Matches only" is on */
-  focusListings?: ScoredListing[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   showNoise: boolean;
   showIsochrones: boolean;
   livabilityOverlay: LivabilityOverlay;
   safetyTracts: SafetyTractsFile | null;
-  /** Fade non-matches when focusing on criteria hits */
-  dimNonMatches?: boolean;
 }
 
 export function MapView({
   anchors,
   isochrones,
   listings,
-  focusListings,
   selectedId,
   onSelect,
   showNoise,
   showIsochrones,
   livabilityOverlay,
   safetyTracts,
-  dimNonMatches = false,
 }: Props) {
   const center = useMemo(() => {
-    const focus = focusListings?.length ? focusListings : listings;
-    if (focus[0]) return [focus[0].lat, focus[0].lng] as [number, number];
+    if (listings[0]) return [listings[0].lat, listings[0].lng] as [number, number];
     const lat = anchors.reduce((s, a) => s + a.lat, 0) / anchors.length;
     const lng = anchors.reduce((s, a) => s + a.lng, 0) / anchors.length;
     return [lat, lng] as [number, number];
-  }, [anchors, listings, focusListings]);
+  }, [anchors, listings]);
 
   const selected = listings.find((l) => l.id === selectedId);
-  const boundsList =
-    focusListings && focusListings.length > 0 ? focusListings : listings;
+  const boundsList = listings;
 
   return (
     <MapContainer
@@ -266,14 +248,12 @@ export function MapView({
       {/* Homes last + high z-index: primary map signal */}
       {listings.map((l) => {
         const isSelected = l.id === selectedId;
-        const dimmed = dimNonMatches && !l.flagged && !isSelected;
         return (
           <Marker
             key={l.id}
             position={[l.lat, l.lng]}
-            icon={homeIcon(l, isSelected, dimmed)}
-            opacity={dimmed ? 0.35 : 1}
-            zIndexOffset={isSelected ? 2000 : l.flagged ? 1500 : dimmed ? 200 : 1000}
+            icon={homeIcon(l, isSelected)}
+            zIndexOffset={isSelected ? 2000 : l.flagged ? 1500 : 1000}
             eventHandlers={{ click: () => onSelect(l.id) }}
           >
             <Popup className="home-popup" maxWidth={280}>

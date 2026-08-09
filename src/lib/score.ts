@@ -41,22 +41,30 @@ export function scoreListing(
     );
   }
 
-  // Beds / baths / sqft
-  if (listing.beds >= criteria.minBeds) {
+  // Beds / baths / sqft — hard minimums
+  if (listing.beds > 0 && listing.beds >= criteria.minBeds) {
     score += 8;
     matchReasons.push(`${listing.beds} beds`);
+  } else if (listing.beds <= 0) {
+    failReasons.push("Missing bed count");
   } else {
-    failReasons.push(`Needs ${criteria.minBeds}+ beds`);
+    failReasons.push(`Needs ${criteria.minBeds}+ beds (has ${listing.beds})`);
   }
-  if (listing.baths >= criteria.minBaths) {
+  if (listing.baths > 0 && listing.baths >= criteria.minBaths) {
     score += 6;
+  } else if (listing.baths <= 0) {
+    failReasons.push("Missing bath count");
   } else {
-    failReasons.push(`Needs ${criteria.minBaths}+ baths`);
+    failReasons.push(`Needs ${criteria.minBaths}+ baths (has ${listing.baths})`);
   }
-  if (listing.sqft >= criteria.minSqft) {
+  if (listing.sqft > 0 && listing.sqft >= criteria.minSqft) {
     score += 6;
+  } else if (listing.sqft <= 0) {
+    failReasons.push("Missing sqft");
   } else {
-    failReasons.push(`Under ${criteria.minSqft.toLocaleString()} sqft`);
+    failReasons.push(
+      `Under ${criteria.minSqft.toLocaleString()} sqft (has ${listing.sqft.toLocaleString()})`,
+    );
   }
 
   // Ocean / sunset viewshed — GIS score vs slider minimum (0 = off)
@@ -225,23 +233,34 @@ export function scoreListing(
     score += 5;
   }
 
-  const hardFails = failReasons.filter(
+  // Core gates — home should not appear in the UI pool at all
+  const coreFails = failReasons.filter(
     (r) =>
       r.startsWith("Not actively for sale") ||
       r.startsWith("Over budget") ||
+      r.startsWith("Needs ") || // beds / baths
+      r.startsWith("Under ") || // sqft
+      r.startsWith("Missing ") || // beds / baths / sqft
+      (criteria.requireSingleFamily && r.startsWith("Not SFR")) ||
+      (criteria.requireOutdoorSpace && r === "No outdoor space") ||
+      r.startsWith("Garage "),
+  );
+
+  // Full match gates — also require viewshed, noise, drive times, livability
+  const hardFails = failReasons.filter(
+    (r) =>
+      coreFails.includes(r) ||
       ((criteria.minOceanViewshed ?? 0) > 0 &&
         r.startsWith("Ocean viewshed")) ||
       r.startsWith("Airplane noise") ||
       r.startsWith("Neighborhood filter") ||
       r.startsWith("Safety ") ||
       r.startsWith("Walk ") ||
-      (criteria.requireOutdoorSpace && r === "No outdoor space") ||
-      (criteria.requireSingleFamily && r.startsWith("Not SFR")) ||
-      r.startsWith("Garage ") ||
       (criteria.requireWithinAllIsochrones &&
         (r.includes("limit") || r.startsWith("Outside"))),
   );
 
+  const coreRejected = coreFails.length > 0;
   const flagged = hardFails.length === 0 && score >= 55;
 
   return {
@@ -249,6 +268,7 @@ export function scoreListing(
     score,
     matchReasons,
     failReasons,
+    coreRejected,
     flagged,
     driveMinutesEstimate: drives,
     safetyScore: livability?.safetyScore,

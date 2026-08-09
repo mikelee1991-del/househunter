@@ -15,11 +15,15 @@ export function useListings() {
         const res = await fetch(`/data/listings.json?t=${Date.now()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as ListingsFile;
-        // Never surface sold/pending or non-property links in the UI
-        const listings = (json.listings ?? []).filter(
-          (l) =>
-            isBuyableMarketStatus(l.status) && isPropertyListingUrl(l.sourceUrl),
-        );
+        // Active property pages only; drop incomplete scrapes (no beds/price)
+        const listings = (json.listings ?? []).filter((l) => {
+          if (!isBuyableMarketStatus(l.status)) return false;
+          if (!isPropertyListingUrl(l.sourceUrl)) return false;
+          if (!(l.price > 0)) return false;
+          if (!(l.beds > 0) || !(l.baths > 0)) return false;
+          if (!(l.lat && l.lng)) return false;
+          return true;
+        });
         if (!cancelled) {
           setData({ ...json, listings });
           setError(null);
