@@ -166,13 +166,15 @@ export default function App() {
           <MapView
             anchors={anchors}
             isochrones={isochrones}
-            listings={visible}
+            listings={scored}
+            focusListings={showFlaggedOnly ? matches : scored}
             selectedId={selectedId}
             onSelect={setSelectedId}
             showNoise={showNoise}
             showIsochrones={showIsochrones && isoMode !== "loading"}
             livabilityOverlay={livabilityOverlay}
             safetyTracts={safetyTracts}
+            dimNonMatches={showFlaggedOnly}
           />
         </div>
 

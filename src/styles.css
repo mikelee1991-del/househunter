@@ -784,6 +784,16 @@ p {
   background: var(--accent);
 }
 
+.home-marker.is-dimmed .home-pin-dot {
+  background: #9a958c;
+  outline-color: transparent;
+}
+
+.home-marker.is-dimmed .home-pin-label {
+  background: #6e6a62;
+  opacity: 0.85;
+}
+
 .home-marker.is-selected .home-pin-label {
   background: var(--warn);
   font-size: 0.85rem;

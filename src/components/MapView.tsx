@@ -31,11 +31,14 @@ const NOISE_COLORS: Record<number, string> = {
 
 function FitToHomes({ listings }: { listings: ScoredListing[] }) {
   const map = useMap();
+  const key = listings.map((l) => l.id).join("|");
   useEffect(() => {
     if (!listings.length) return;
     const pts = listings.map((l) => [l.lat, l.lng] as [number, number]);
     map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 13 });
-  }, [listings, map]);
+    // key captures listing set identity without depending on array ref churn
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, map]);
   return null;
 }
 
@@ -61,9 +64,19 @@ function anchorIcon(color: string) {
   });
 }
 
-function homeIcon(listing: ScoredListing, selected: boolean) {
+function homeIcon(
+  listing: ScoredListing,
+  selected: boolean,
+  dimmed: boolean,
+) {
   const price = `$${(listing.price / 1e6).toFixed(2)}M`;
-  const state = selected ? "is-selected" : listing.flagged ? "is-match" : "";
+  const state = selected
+    ? "is-selected"
+    : listing.flagged
+      ? "is-match"
+      : dimmed
+        ? "is-dimmed"
+        : "";
   return L.divIcon({
     className: `home-marker ${state}`,
     html: `
@@ -98,33 +111,42 @@ interface Props {
   anchors: Anchor[];
   isochrones: IsochroneMap;
   listings: ScoredListing[];
+  /** Bounds focus — usually matches when "Matches only" is on */
+  focusListings?: ScoredListing[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   showNoise: boolean;
   showIsochrones: boolean;
   livabilityOverlay: LivabilityOverlay;
   safetyTracts: SafetyTractsFile | null;
+  /** Fade non-matches when focusing on criteria hits */
+  dimNonMatches?: boolean;
 }
 
 export function MapView({
   anchors,
   isochrones,
   listings,
+  focusListings,
   selectedId,
   onSelect,
   showNoise,
   showIsochrones,
   livabilityOverlay,
   safetyTracts,
+  dimNonMatches = false,
 }: Props) {
   const center = useMemo(() => {
-    if (listings[0]) return [listings[0].lat, listings[0].lng] as [number, number];
+    const focus = focusListings?.length ? focusListings : listings;
+    if (focus[0]) return [focus[0].lat, focus[0].lng] as [number, number];
     const lat = anchors.reduce((s, a) => s + a.lat, 0) / anchors.length;
     const lng = anchors.reduce((s, a) => s + a.lng, 0) / anchors.length;
     return [lat, lng] as [number, number];
-  }, [anchors, listings]);
+  }, [anchors, listings, focusListings]);
 
   const selected = listings.find((l) => l.id === selectedId);
+  const boundsList =
+    focusListings && focusListings.length > 0 ? focusListings : listings;
 
   return (
     <MapContainer
@@ -137,7 +159,7 @@ export function MapView({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
       />
-      <FitToHomes listings={listings} />
+      <FitToHomes listings={boundsList} />
       <FocusSelected listing={selected} />
 
       {livabilityOverlay === "safety" &&
@@ -244,12 +266,14 @@ export function MapView({
       {/* Homes last + high z-index: primary map signal */}
       {listings.map((l) => {
         const isSelected = l.id === selectedId;
+        const dimmed = dimNonMatches && !l.flagged && !isSelected;
         return (
           <Marker
             key={l.id}
             position={[l.lat, l.lng]}
-            icon={homeIcon(l, isSelected)}
-            zIndexOffset={isSelected ? 2000 : l.flagged ? 1500 : 1000}
+            icon={homeIcon(l, isSelected, dimmed)}
+            opacity={dimmed ? 0.35 : 1}
+            zIndexOffset={isSelected ? 2000 : l.flagged ? 1500 : dimmed ? 200 : 1000}
             eventHandlers={{ click: () => onSelect(l.id) }}
           >
             <Popup className="home-popup" maxWidth={280}>

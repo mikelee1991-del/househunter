@@ -165,19 +165,33 @@ async function geocode(address) {
   }
 }
 
-function cityFromPath(path) {
-  if (path.includes("manhattan-beach")) return "Manhattan Beach";
-  if (path.includes("hermosa")) return "Hermosa Beach";
-  if (path.includes("redondo")) return "Redondo Beach";
-  if (path.includes("palos-verdes-estates")) return "Palos Verdes Estates";
-  if (path.includes("rancho-palos") || path.includes("palos-verdes")) {
-    return "Rancho Palos Verdes";
+const CITY_SLUGS = [
+  ["rolling-hills-estates", "Rolling Hills Estates"],
+  ["rancho-palos-verdes", "Rancho Palos Verdes"],
+  ["palos-verdes-estates", "Palos Verdes Estates"],
+  ["palos-verdes-peninsula", "Rancho Palos Verdes"],
+  ["manhattan-beach", "Manhattan Beach"],
+  ["hermosa-beach", "Hermosa Beach"],
+  ["redondo-beach", "Redondo Beach"],
+  ["el-segundo", "El Segundo"],
+  ["playa-del-rey", "Playa del Rey"],
+  ["westchester", "Westchester"],
+  ["torrance", "Torrance"],
+];
+
+/** Prefer city + zip embedded in the detail slug over loose string matches. */
+function placeFromPath(path) {
+  const clean = path.replace(/^\/|\/$/g, "");
+  const beforeMls = clean.split(/-mls-/i)[0] || clean;
+  const zipMatch = beforeMls.match(/^(.*?)-(90\d{3})$/);
+  const zip = zipMatch?.[2] || "";
+  const rest = zipMatch?.[1] || beforeMls;
+  for (const [slug, name] of CITY_SLUGS) {
+    if (rest.endsWith(`-${slug}`) || rest.includes(`-${slug}-`)) {
+      return { city: name, zip };
+    }
   }
-  if (path.includes("el-segundo")) return "El Segundo";
-  if (path.includes("torrance")) return "Torrance";
-  if (path.includes("playa")) return "Playa del Rey";
-  if (path.includes("westchester")) return "Westchester";
-  return "Los Angeles";
+  return { city: "Los Angeles", zip };
 }
 
 async function parseDetail(path) {
@@ -258,23 +272,26 @@ async function parseDetail(path) {
     ? "condo"
     : "sfr";
 
-  const city = cityFromPath(path);
-  const zip = pick(html, [/\b(90\d{3})\b/]) || pick(path, [/-(90\d{3})/]) || "";
+  const place = placeFromPath(path);
+  const city = place.city;
+  const zip =
+    place.zip ||
+    pick(html, [/\b(90\d{3})\b/]) ||
+    pick(path, [/-(90\d{3})/]) ||
+    "";
   const desc = metaDesc || `Active South Bay listing · ${city}`;
 
   const oceanView = /ocean|catalina|pacific|sunset view|water view|strand/i.test(
     `${desc} ${street}`,
   );
 
-  let lat = Number(pick(html, [/"latitude"\s*:\s*(-?\d+\.\d+)/i]));
-  let lng = Number(pick(html, [/"longitude"\s*:\s*(-?\d+\.\d+)/i]));
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    const g = await geocode(`${street}, ${city}, CA ${zip}`);
-    if (!g) return null;
-    lat = g.lat;
-    lng = g.lng;
-    await sleep(250);
-  }
+  // Always geocode the street address. Page HTML often embeds a single
+  // office/map default lat/lng that would stack every pin on one point.
+  const g = await geocode(`${street}, ${city}, CA ${zip}`);
+  if (!g) return null;
+  const lat = g.lat;
+  const lng = g.lng;
+  await sleep(250);
 
   const now = new Date().toISOString();
   const outdoor =

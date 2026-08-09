@@ -10,6 +10,7 @@
     "ingest": "tsx scripts/ingest-listings.ts",
     "ingest:market": "node scripts/scrape-mbconfidential.mjs",
     "ingest:enrich": "node scripts/enrich-mbc-listings.mjs",
+    "ingest:regeocode": "node scripts/regeocode-listings.mjs",
     "build:safety": "node scripts/build-safety-tracts.mjs",
     "typecheck": "tsc -b --noEmit"
   },
