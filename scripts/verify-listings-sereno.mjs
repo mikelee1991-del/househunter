@@ -7,11 +7,20 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  extractAskPrice,
+  priceConflictsWithDescription,
+} from "./lib/parseListingPrice.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outPath = join(root, "public", "data", "listings.json");
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
+
+/** Known sold / bad rows that must never re-enter inventory */
+const DENY_MLS = new Set([
+  "SB26028112", // 2420 The Strand — sold ~$16M; was wrongly stored at $1.55M
+]);
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -49,13 +58,14 @@ function parseSereno(html, finalUrl) {
     status = "active";
   }
 
-  if (status === "unknown") {
+  // Availability is authoritative even when chip text is messy
+  if (/"availability"\s*:\s*"[^"]*(SoldOut|OutOfStock)"/i.test(html)) {
+    status = "sold";
+  } else if (status === "unknown") {
     if (
-      /"availability"\s*:\s*"[^"]*(SoldOut|OutOfStock)"/i.test(html)
-    ) {
-      status = "sold";
-    } else if (
-      /OffMarket|off-market|no longer available/i.test(html.slice(0, 50000))
+      /OffMarket|off-market|no longer available|Sold Price|Close Price/i.test(
+        html.slice(0, 80_000),
+      )
     ) {
       status = "sold";
     } else if (/"availability"\s*:\s*"[^"]*InStock"/i.test(html)) {
@@ -63,17 +73,14 @@ function parseSereno(html, finalUrl) {
     }
   }
 
-  // Prefer schema.org Offer price; ignore tiny $ amounts (HOA / fees)
-  const candidates = [
-    Number(html.match(/"price"\s*:\s*(\d{6,})/)?.[1]),
-    Number(
-      (html.match(/Listed at \$([\d,]+)/i)?.[1] || "").replace(/,/g, ""),
-    ),
-    ...[...html.matchAll(/\$([\d,]{7,})/g)].map((m) =>
-      Number(m[1].replace(/,/g, "")),
-    ),
-  ].filter((n) => Number.isFinite(n) && n >= 400_000 && n <= 50_000_000);
-  const priceNum = candidates[0] || 0;
+  const schemaPrice = Number(html.match(/"price"\s*:\s*(\d{6,})/)?.[1]) || 0;
+  const ask = extractAskPrice(html, { minPrice: 400_000, maxPrice: 50_000_000 });
+  const priceNum =
+    schemaPrice >= 400_000
+      ? schemaPrice
+      : ask.price >= 400_000
+        ? ask.price
+        : 0;
 
   const beds =
     Number(html.match(/(\d+)\s*Beds?\b/i)?.[1]) ||
@@ -129,11 +136,25 @@ async function main() {
 
   for (let i = 0; i < listings.length; i += 1) {
     const l = listings[i];
-    const mls = mlsFromUrl(l.sourceUrl);
+    const mls =
+      mlsFromUrl(l.sourceUrl) ||
+      String(l.sourceUrl).match(/sereno\.com\/([A-Z]{2}\d{6,})/i)?.[1]?.toUpperCase();
     if (!mls) {
       // Non-MLS / unverifiable — drop to avoid stale junk
       dropped += 1;
       console.log(`[${i + 1}/${listings.length}] DROP no-mls ${l.address}`);
+      continue;
+    }
+    if (DENY_MLS.has(mls)) {
+      dropped += 1;
+      console.log(`[${i + 1}/${listings.length}] DROP denylist ${mls} ${l.address}`);
+      continue;
+    }
+    if (priceConflictsWithDescription(l.price, l.description)) {
+      dropped += 1;
+      console.log(
+        `[${i + 1}/${listings.length}] DROP price/desc mismatch ${l.address} stored=$${l.price}`,
+      );
       continue;
     }
 

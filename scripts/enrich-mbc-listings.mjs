@@ -5,6 +5,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  extractAskPrice,
+  priceConflictsWithDescription,
+} from "./lib/parseListingPrice.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outPath = join(root, "public", "data", "listings.json");
@@ -101,6 +105,17 @@ async function main() {
       if (meta.lotSqft) l.lotSqft = meta.lotSqft;
       if (meta.photos.length) l.photos = meta.photos;
       if (meta.description) l.description = meta.description;
+      // Repair ask price from meta / Current Price (never keep reduction deltas)
+      const ask = extractAskPrice(html);
+      if (ask.price >= 400_000) {
+        if (
+          !l.price ||
+          priceConflictsWithDescription(l.price, meta.description) ||
+          ask.price > l.price * 1.2
+        ) {
+          l.price = ask.price;
+        }
+      }
       l.outdoorSpace =
         l.outdoorSpace ||
         /yard|patio|deck|balcony|garden/i.test(meta.description) ||
