@@ -40,11 +40,12 @@ npm run ingest
 ```bash
 npm run ingest:market   # scrape active South Bay IDX (~$1M–$12M) → listings.json
 npm run ingest:enrich   # backfill beds/baths/sqft/photos from detail pages
+npm run ingest:verify   # re-check each MLS on Sereno; refresh price; drop sold/pending
 # or, with a key for fuller MLS coverage:
 # RENTCAST_API_KEY=... npm run ingest
 ```
 
-Ingest uses a wide price band; your criteria sliders filter that down. Sold/pending rows are dropped. Empty scrapes never overwrite existing inventory. Add hand-vetted homes to `data/manual-listings.json`. Optionally set `VERIFY_LISTING_STATUS=1` during `npm run ingest` to re-check source URLs.
+Ingest uses a wide price band; your criteria sliders filter that down. `ingest:verify` is the freshness gate — it updates ask prices from live CRMLS pages and removes sold/pending/unverifiable rows. Empty scrapes never overwrite existing inventory. Add hand-vetted homes to `data/manual-listings.json`.
 
 ### Daily refresh
 
