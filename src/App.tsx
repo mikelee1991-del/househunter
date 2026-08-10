@@ -61,20 +61,42 @@ export default function App() {
   }, [orsKey]);
 
   const scored = useMemo(() => {
+    // Prefer live isochrone polygons when ready; otherwise use precomputed
+    // / approx drive minutes so matches paint immediately.
     const polysReady =
       isoMode === "ors" || isoMode === "valhalla" ? isochrones : undefined;
     return listings
-      .map((l) =>
-        scoreListing(
+      .map((l) => {
+        const livability = livabilityById[l.id] ??
+          (l.analysis
+            ? {
+                safetyScore: l.analysis.safetyScore,
+                safetyLabel: l.analysis.safetyLabel,
+                walkIndex: l.analysis.walkIndex,
+                walkSource: l.analysis.walkSource,
+              }
+            : undefined);
+        const viewshed =
+          viewshedById[l.id] ??
+          (l.analysis?.oceanViewshed
+            ? {
+                ...l.analysis.oceanViewshed,
+                buildingHits: 0,
+                eyeHeightM: 5.5,
+                facingUsedDeg: 270,
+                method: "dem-los+osm-buildings" as const,
+              }
+            : undefined);
+        return scoreListing(
           l,
           criteria,
           anchors,
           polysReady,
-          undefined,
-          livabilityById[l.id],
-          viewshedById[l.id],
-        ),
-      )
+          l.analysis?.driveMinutes,
+          livability,
+          viewshed,
+        );
+      })
       .sort((a, b) => {
         if (a.flagged !== b.flagged) return a.flagged ? -1 : 1;
         return b.score - a.score;
