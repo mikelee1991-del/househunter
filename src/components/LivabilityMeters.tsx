@@ -1,4 +1,7 @@
-import { OCEAN_VIEWSHED_EXPLAIN } from "../lib/oceanViewshed";
+import {
+  OCEAN_VIEWSHED_EXPLAIN,
+  viewshedBandLabel,
+} from "../lib/oceanViewshed";
 import { walkBandLabel } from "../data/neighborhoodLivability";
 
 interface Props {
@@ -86,10 +89,10 @@ export function LivabilityMeters({
       {showView && (
         <div className="liv-row">
           <div className="liv-head">
-            <span>Ocean viewshed</span>
+            <span>Ocean / sunset openness</span>
             <strong className={viewOk ? "ok" : "bad"}>
-              {oceanViewshedScore}/100
-              {viewOk ? " · clear wedge" : " · blocked"}
+              {oceanViewshedScore}/100 ·{" "}
+              {viewshedBandLabel(oceanViewshedScore ?? 0).toLowerCase()}
             </strong>
           </div>
           <div className="liv-track" aria-hidden>
@@ -103,8 +106,11 @@ export function LivabilityMeters({
             />
           </div>
           <p className="liv-cap" title={OCEAN_VIEWSHED_EXPLAIN}>
-            % of rays toward ocean/sunset that clear terrain + buildings (GIS ·
-            your min {minOceanViewshed}/100)
+            Clear share of the sunset/Pacific wedge (hills + nearby buildings).
+            Your min {minOceanViewshed}/100
+            {minOceanViewshed === 0
+              ? " · filter off"
+              : ` · ${viewshedBandLabel(minOceanViewshed).toLowerCase()}`}
           </p>
         </div>
       )}
