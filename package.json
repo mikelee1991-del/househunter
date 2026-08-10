@@ -11,6 +11,8 @@
     "ingest:market": "node scripts/scrape-mbconfidential.mjs",
     "ingest:enrich": "node scripts/enrich-mbc-listings.mjs",
     "ingest:regeocode": "node scripts/regeocode-listings.mjs",
+    "ingest:refresh": "node scripts/refresh-mbc-market.mjs",
+    "ingest:verify": "node scripts/verify-listings-sereno.mjs",
     "build:safety": "node scripts/build-safety-tracts.mjs",
     "typecheck": "tsc -b --noEmit"
   },
