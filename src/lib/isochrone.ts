@@ -41,12 +41,16 @@ export function setStoredOrsKey(key: string) {
 }
 
 export function resolveOrsKey(uiKey?: string): string {
-  return (
-    uiKey?.trim() ||
-    getStoredOrsKey() ||
-    import.meta.env.VITE_ORS_API_KEY ||
-    ""
-  );
+  let viteKey = "";
+  try {
+    // Safe under Vite and Node/tsx (import.meta.env may be missing)
+    viteKey =
+      (import.meta as ImportMeta & { env?: { VITE_ORS_API_KEY?: string } }).env
+        ?.VITE_ORS_API_KEY ?? "";
+  } catch {
+    viteKey = "";
+  }
+  return uiKey?.trim() || getStoredOrsKey() || viteKey || "";
 }
 
 /** Ray-cast point-in-polygon. Ring is [lng, lat][]. */

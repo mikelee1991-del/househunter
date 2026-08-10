@@ -97,6 +97,42 @@ export interface Listing {
   updatedAt: string;
   /** Approximate CNEL from LAX contour model */
   noiseCnel: number;
+  /**
+   * Precomputed analysis (viewshed, walk, drives, default score).
+   * Written by `npm run ingest:precompute` so the UI paints without
+   * waiting on DEM / EPA / Overpass.
+   */
+  analysis?: ListingAnalysis;
+}
+
+/** Cached GIS / livability / drive inputs + default-criteria score snapshot */
+export interface ListingAnalysis {
+  computedAt: string;
+  safetyScore: number;
+  safetyLabel: string;
+  walkIndex: number;
+  walkSource: "epa" | "neighborhood-fallback";
+  driveMinutes: Record<AnchorId, number>;
+  oceanViewshed: {
+    hasOceanView: boolean;
+    clearRayFraction: number;
+    score100: number;
+    clearRays: number;
+    testedRays: number;
+    nearestCoastKm: number;
+    terrainBlockedRays: number;
+    buildingBlockedRays: number;
+    confidence: "high" | "medium" | "low";
+    summary: string;
+  };
+  /** Score against DEFAULT_CRITERIA at compute time */
+  defaultScore: {
+    score: number;
+    flagged: boolean;
+    coreRejected: boolean;
+    matchReasons: string[];
+    failReasons: string[];
+  };
 }
 
 export interface ScoredListing extends Listing {
