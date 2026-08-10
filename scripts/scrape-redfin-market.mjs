@@ -1,0 +1,272 @@
+/**
+ * Pull active South Bay SFR inventory from Redfin by intercepting the
+ * authenticated stingray/api/gis responses inside Chromium.
+ *
+ * Usage: node scripts/scrape-redfin-market.mjs
+ * Writes public/data/listings.json (merged with manual overlays).
+ */
+import { chromium } from "playwright";
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = join(__dirname, "..");
+const outPath = join(root, "public", "data", "listings.json");
+const manualPath = join(root, "data", "manual-listings.json");
+
+const MIN_PRICE = Number(process.env.INGEST_MIN_PRICE ?? 1_500_000);
+const MAX_PRICE = Number(process.env.INGEST_MAX_PRICE ?? 5_000_000);
+
+/** Redfin city URLs (region ids from redfin.com/city/{id}/CA/...). */
+const CITIES = [
+  { name: "Manhattan Beach", id: 11270, slug: "Manhattan-Beach" },
+  { name: "Hermosa Beach", id: 8584, slug: "Hermosa-Beach" },
+  { name: "Redondo Beach", id: 15502, slug: "Redondo-Beach" },
+  { name: "Torrance", id: 17150, slug: "Torrance" },
+  { name: "Palos Verdes Estates", id: 14887, slug: "Palos-Verdes-Estates" },
+  { name: "Rancho Palos Verdes", id: 15352, slug: "Rancho-Palos-Verdes" },
+  { name: "El Segundo", id: 5572, slug: "El-Segundo" },
+  { name: "Los Angeles", id: 11203, slug: "Los-Angeles", neighborhoodHint: true },
+];
+
+const SOUTH_BAY_BOUNDS = {
+  minLat: 33.70,
+  maxLat: 34.02,
+  minLng: -118.55,
+  maxLng: -118.25,
+};
+
+function estimateNoiseCnel(lat, lng) {
+  const dLat = lat - 33.942;
+  const dLng = (lng + 118.4085) * Math.cos((lat * Math.PI) / 180);
+  const distKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111;
+  if (distKm < 3.5) return 75;
+  if (distKm < 5.5) return 70;
+  if (distKm < 7.5) return 65;
+  if (distKm < 10) return Math.round(55 + (10 - distKm) * 2);
+  if (distKm < 14) return Math.round(45 + (14 - distKm));
+  return 40;
+}
+
+function inSouthBay(lat, lng) {
+  return (
+    lat >= SOUTH_BAY_BOUNDS.minLat &&
+    lat <= SOUTH_BAY_BOUNDS.maxLat &&
+    lng >= SOUTH_BAY_BOUNDS.minLng &&
+    lng <= SOUTH_BAY_BOUNDS.maxLng
+  );
+}
+
+function neighborhoodFor(city, lat, lng) {
+  // Rough Playa / Westchester pockets inside LA city results
+  if (city === "Los Angeles" || city === "Playa del Rey") {
+    if (lat >= 33.94 && lat <= 33.98 && lng <= -118.42) return "Playa del Rey";
+    if (lat >= 33.94 && lat <= 33.98 && lng > -118.42) return "Westchester";
+    if (lat >= 33.96 && lng <= -118.44) return "Marina del Rey";
+  }
+  return city;
+}
+
+function mapHome(h) {
+  const lat = h.latLong?.value?.latitude ?? h.latitude;
+  const lng = h.latLong?.value?.longitude ?? h.longitude;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (!inSouthBay(lat, lng)) return null;
+
+  const price = Number(h.price?.value ?? h.price ?? 0);
+  if (!price || price < MIN_PRICE || price > MAX_PRICE) return null;
+
+  const mls = String(h.mlsStatus ?? "").toLowerCase();
+  if (mls && /sold|off.?market|closed|withdrawn/.test(mls)) return null;
+  // Keep Active / Coming Soon / New; drop Pending unless explicitly wanted
+  if (/pending|contingent|under contract/.test(mls)) return null;
+
+  const street = String(h.streetLine?.value ?? h.streetLine ?? "").trim();
+  if (!street || /^undisclosed/i.test(street) || street === "00") return null;
+
+  const city = String(h.city ?? "");
+  const zip = String(h.zip ?? h.postalCode?.value ?? "");
+  const urlPath = String(h.url ?? "");
+  if (!/\/home\/\d+/.test(urlPath)) return null;
+
+  const beds = Number(h.beds ?? 0);
+  const baths = Number(h.baths ?? 0);
+  const sqft = Number(h.sqFt?.value ?? h.sqFt ?? 0);
+  const lot = h.lotSize?.value ? Number(h.lotSize.value) : undefined;
+  const yearBuilt = h.yearBuilt?.value ? Number(h.yearBuilt.value) : undefined;
+  const garage =
+    typeof h.parkingSpaces === "number"
+      ? h.parkingSpaces
+      : typeof h.garageSpaces === "number"
+        ? h.garageSpaces
+        : lot && lot >= 2500
+          ? 2
+          : 0;
+
+  const descBits = [
+    h.listingRemarks,
+    h.sashes?.map((s) => s.sashTypeName).join(" "),
+    mls,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const oceanView = /ocean|catalina|pacific|water view|sunset view/i.test(
+    descBits,
+  );
+
+  const neighborhood = neighborhoodFor(city, lat, lng);
+  const now = new Date().toISOString();
+  const propertyId = h.propertyId ?? h.listingId ?? `${lat}-${lng}`;
+
+  return {
+    id: `redfin-${propertyId}`,
+    source: "redfin",
+    sourceUrl: `https://www.redfin.com${urlPath}`,
+    address: street,
+    city,
+    neighborhood,
+    zip,
+    lat,
+    lng,
+    price,
+    beds,
+    baths,
+    sqft,
+    yearBuilt,
+    lotSqft: lot,
+    propertyType: "sfr",
+    garageSpaces: garage,
+    outdoorSpace: Boolean(lot && lot >= 1500) || /yard|patio|deck/i.test(descBits),
+    outdoorTypes: lot && lot >= 1500 ? ["yard"] : [],
+    oceanView,
+    oceanViewConfidence: oceanView ? "inferred" : "unknown",
+    photos: [],
+    description: `Active Redfin SFR · ${mls || "for sale"} · ${city}${
+      descBits ? ` · ${String(descBits).slice(0, 200)}` : ""
+    }`,
+    status: "active",
+    listedAt: now,
+    updatedAt: now,
+    noiseCnel: estimateNoiseCnel(lat, lng),
+  };
+}
+
+function loadManual() {
+  if (!existsSync(manualPath)) return [];
+  try {
+    return JSON.parse(readFileSync(manualPath, "utf8")).listings ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function merge(groups) {
+  const map = new Map();
+  for (const group of groups) {
+    for (const l of group) {
+      const key = `${l.address.toLowerCase()}|${l.zip}|${Math.round(l.price / 1000)}`;
+      const prev = map.get(key);
+      if (!prev || l.updatedAt >= prev.updatedAt) map.set(key, l);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.price - a.price);
+}
+
+async function scrapeCity(page, city) {
+  const filter = `property-type=house,min-price=${Math.round(MIN_PRICE / 1000)}k,max-price=${Math.round(MAX_PRICE / 1000)}k,status=active`;
+  const url = `https://www.redfin.com/city/${city.id}/CA/${city.slug}/filter/${filter}`;
+  const homes = [];
+  const seenPages = new Set();
+
+  const onResponse = async (res) => {
+    try {
+      if (!res.url().includes("/stingray/api/gis")) return;
+      if (res.status() !== 200) return;
+      let text = await res.text();
+      if (text.startsWith("{}&&")) text = text.slice(4);
+      const json = JSON.parse(text);
+      const batch = json?.payload?.homes ?? [];
+      for (const h of batch) {
+        const mapped = mapHome(h);
+        if (mapped) homes.push(mapped);
+      }
+      seenPages.add(res.url());
+    } catch {
+      /* ignore parse errors */
+    }
+  };
+
+  page.on("response", onResponse);
+  console.log(`→ ${city.name}: ${url}`);
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90_000 });
+  await page.waitForTimeout(3500);
+
+  // Scroll / page through a few result pages if pagination exists
+  for (let i = 0; i < 4; i++) {
+    const next = page.locator('a[aria-label="Next"], button:has-text("Next")').first();
+    if ((await next.count()) === 0) break;
+    if (!(await next.isEnabled().catch(() => false))) break;
+    await next.click().catch(() => {});
+    await page.waitForTimeout(2500);
+  }
+
+  page.off("response", onResponse);
+  // Dedup within city
+  const byId = new Map(homes.map((h) => [h.id, h]));
+  console.log(`  captured ${byId.size} South Bay homes (${seenPages.size} GIS responses)`);
+  return [...byId.values()];
+}
+
+async function main() {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    locale: "en-US",
+    viewport: { width: 1400, height: 900 },
+  });
+  const page = await context.newPage();
+
+  const all = [];
+  for (const city of CITIES) {
+    try {
+      const batch = await scrapeCity(page, city);
+      all.push(...batch);
+    } catch (err) {
+      console.warn(`  failed ${city.name}:`, err.message ?? err);
+    }
+    await page.waitForTimeout(1200);
+  }
+
+  await browser.close();
+
+  const manual = loadManual();
+  const merged = merge([manual, all]);
+
+  mkdirSync(dirname(outPath), { recursive: true });
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    sources: [
+      "redfin-market-scrape",
+      ...(manual.length ? ["manual"] : []),
+    ],
+    listings: merged,
+  };
+  writeFileSync(outPath, JSON.stringify(payload, null, 2) + "\n", "utf8");
+  console.log(
+    `\nWrote ${merged.length} active listings → ${outPath}` +
+      ` (price band $${MIN_PRICE / 1e6}M–$${MAX_PRICE / 1e6}M)`,
+  );
+  if (!merged.length) {
+    console.error(
+      "No listings captured. Redfin may be blocking headless Chromium — retry, or set RENTCAST_API_KEY and run npm run ingest.",
+    );
+    process.exitCode = 1;
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
