@@ -241,16 +241,17 @@ export default function App() {
                 {selected.oceanViewshed && (
                   <p
                     className="pick-meta subtle"
-                    title="Share of rays toward the Pacific / sunset sky that clear terrain and nearby buildings. Not about house facing."
+                    title="How open the ocean/sunset direction is from this lot. Sight-lines toward the Pacific; hills and nearby buildings can block. Not about house facing."
                   >
-                    Ocean viewshed {selected.oceanViewshed.score100}/100
+                    Ocean / sunset openness{" "}
+                    {selected.oceanViewshed.score100}/100
                     {selected.oceanViewshed.score100 >=
                     criteria.minOceanViewshed
-                      ? ` · meets min ${criteria.minOceanViewshed}/100`
-                      : ` · below min ${criteria.minOceanViewshed}/100`}
+                      ? ` · meets your min ${criteria.minOceanViewshed}`
+                      : ` · below your min ${criteria.minOceanViewshed}`}
                     {" · "}
-                    {selected.oceanViewshed.clearRays}/
-                    {selected.oceanViewshed.testedRays} rays · ~
+                    {selected.oceanViewshed.clearRays} of{" "}
+                    {selected.oceanViewshed.testedRays} sight-lines clear · ~
                     {selected.oceanViewshed.nearestCoastKm.toFixed(1)} km to
                     coast
                   </p>

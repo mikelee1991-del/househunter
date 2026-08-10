@@ -88,7 +88,7 @@ export function ListingCard({ listing, criteria, selected, onSelect }: Props) {
               }`}
               title={listing.oceanViewshed.summary}
             >
-              Ocean viewshed {listing.oceanViewshed.score100}/100
+              Ocean/sunset {listing.oceanViewshed.score100}/100
             </span>
           ) : (
             listing.oceanView && (

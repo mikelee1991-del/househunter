@@ -43,7 +43,15 @@ export interface OceanViewshedResult {
 
 /** Plain-language blurb for UI captions / tooltips. */
 export const OCEAN_VIEWSHED_EXPLAIN =
-  "Ocean viewshed (0–100): share of rays toward the Pacific / sunset sky that clear terrain and nearby buildings. About ocean + sunset visibility — not whether the house faces west. Screening GIS only.";
+  "How open the ocean/sunset direction is from this lot (0–100). We cast sight-lines toward the Pacific in the sunset band and count how many clear hills and nearby buildings. Not about which way the house faces. Screening only — confirm on tour.";
+
+/** Short label for a score or slider threshold. */
+export function viewshedBandLabel(score100: number): string {
+  if (score100 <= 0) return "Off";
+  if (score100 < 35) return "Mostly blocked";
+  if (score100 < 60) return "Usable wedge";
+  return "Strong wedge";
+}
 
 export function viewshedScore100(clearRayFraction: number): number {
   return Math.round(Math.min(1, Math.max(0, clearRayFraction)) * 100);

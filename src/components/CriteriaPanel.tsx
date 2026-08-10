@@ -5,6 +5,10 @@ import {
 } from "../data/anchors";
 import { geocodeAddress } from "../lib/geocode";
 import type { IsochroneMode } from "../lib/isochrone";
+import {
+  OCEAN_VIEWSHED_EXPLAIN,
+  viewshedBandLabel,
+} from "../lib/oceanViewshed";
 import type { Anchor, AnchorId, Criteria } from "../types";
 
 interface Props {
@@ -245,8 +249,10 @@ export function CriteriaPanel({
         </div>
         <label className="field field-inline">
           <span>
-            Min ocean viewshed — {criteria.minOceanViewshed}/100
-            {criteria.minOceanViewshed === 0 ? " (off)" : ""}
+            Ocean / sunset openness — min {criteria.minOceanViewshed}/100
+            {criteria.minOceanViewshed === 0
+              ? " · off"
+              : ` · ${viewshedBandLabel(criteria.minOceanViewshed).toLowerCase()}`}
           </span>
           <input
             type="range"
@@ -264,10 +270,54 @@ export function CriteriaPanel({
             }}
           />
         </label>
-        <p className="hint">
-          0–100 GIS score: % of rays toward the Pacific / sunset that clear
-          terrain and buildings. 0 = no filter; ~35 ≈ a usable ocean/sunset
-          wedge.
+        <div className="chip-row chip-row-tight">
+          <button
+            type="button"
+            className={`chip ${criteria.minOceanViewshed === 0 ? "chip-on" : ""}`}
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                minOceanViewshed: 0,
+                requireOceanView: false,
+              })
+            }
+          >
+            Off
+          </button>
+          <button
+            type="button"
+            className={`chip ${criteria.minOceanViewshed === 35 ? "chip-on" : ""}`}
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                minOceanViewshed: 35,
+                requireOceanView: true,
+              })
+            }
+          >
+            Usable (~35)
+          </button>
+          <button
+            type="button"
+            className={`chip ${criteria.minOceanViewshed === 60 ? "chip-on" : ""}`}
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                minOceanViewshed: 60,
+                requireOceanView: true,
+              })
+            }
+          >
+            Strong (~60)
+          </button>
+        </div>
+        <p className="hint" title={OCEAN_VIEWSHED_EXPLAIN}>
+          From each lot we look toward the Pacific at sunset and score how much
+          of that wedge is clear of hills and nearby buildings. Higher = more
+          open ocean/sunset exposure. House facing is ignored.{" "}
+          <strong>0</strong> turns the filter off; <strong>~35</strong> is a
+          usable wedge; <strong>~60+</strong> is stricter. GIS screening only —
+          confirm on tour.
         </p>
         <label className="check">
           <input
