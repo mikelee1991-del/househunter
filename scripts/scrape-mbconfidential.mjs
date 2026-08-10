@@ -7,6 +7,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractAskPrice, parseMoney } from "./lib/parseListingPrice.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -132,11 +133,6 @@ function pick(html, patterns) {
   return "";
 }
 
-function parseMoney(s) {
-  const n = Number(String(s).replace(/[^\d.]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
-
 function inferStatus(html) {
   if (/Active Status/i.test(html)) return "active";
   if (/Coming Soon/i.test(html) && /Current Price/i.test(html)) return "active";
@@ -208,22 +204,17 @@ async function parseDetail(path) {
   const street = title.replace(/,.*$/, "").replace(/\s+/g, " ").trim();
   if (!street) return null;
 
-  let price = 0;
-  const nearCurrent = html.match(/Current Price[\s\S]{0,400}?\$([\d,]+)/i);
-  if (nearCurrent) price = parseMoney(nearCurrent[1]);
-  if (!price) {
-    const amounts = [...html.matchAll(/\$([\d,]{7,})/g)]
-      .map((m) => parseMoney(m[1]))
-      .filter((n) => n >= MIN_PRICE && n <= MAX_PRICE);
-    price = amounts[0] ?? 0;
-  }
-  if (!price || price < MIN_PRICE || price > MAX_PRICE) return null;
-
   const metaDesc =
     pick(html, [
       /<meta\s+name="description"\s+content="([^"]+)"/i,
       /<meta\s+property="og:description"\s+content="([^"]+)"/i,
     ]) || "";
+
+  // Prefer "Listed at" / Current Price; never keep a price-cut delta when the
+  // true ask is above the ingest band (that bug listed 2420 The Strand at $1.55M).
+  const ask = extractAskPrice(html, { minPrice: MIN_PRICE, maxPrice: MAX_PRICE });
+  const price = ask.price;
+  if (!price || ask.overMax || price < MIN_PRICE || price > MAX_PRICE) return null;
   const bedBath = metaDesc.match(
     /(\d+)\s*-?\s*bedroom[s]?,\s*([\d.]+)\s*-?\s*bathroom/i,
   );
