@@ -413,7 +413,10 @@ p {
   top: 0.75rem;
   right: 0.75rem;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.65rem;
+  max-width: min(100% - 1.5rem, 36rem);
   background: var(--surface);
   border: 1px solid var(--stroke);
   border-radius: 6px;
@@ -522,6 +525,52 @@ p {
 
 .safety-legend li span {
   color: var(--muted);
+}
+
+.suitability-legend {
+  position: absolute;
+  z-index: 500;
+  left: 0.75rem;
+  top: 3.25rem;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.72rem;
+  max-width: 220px;
+  pointer-events: none;
+}
+
+.suitability-legend strong {
+  display: block;
+  font-size: 0.78rem;
+  margin-bottom: 0.15rem;
+}
+
+.suitability-legend p {
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+  line-height: 1.3;
+}
+
+.suitability-legend-ramp {
+  height: 10px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgb(120 130 140 / 0.15),
+    rgb(190 150 100 / 0.55),
+    rgb(61 139 102 / 0.75),
+    rgb(11 110 79 / 0.9)
+  );
+}
+
+.suitability-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
 }
 
 .results-top {

@@ -7,6 +7,7 @@ import {
   type LivabilityOverlay,
 } from "./components/MapView";
 import { SafetyLegend } from "./components/SafetyLegend";
+import { SuitabilityLegend } from "./components/SuitabilityLegend";
 import { DEFAULT_ANCHORS, DEFAULT_CRITERIA } from "./data/anchors";
 import { useIsochrones } from "./hooks/useIsochrones";
 import { useListings } from "./hooks/useListings";
@@ -29,6 +30,8 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showNoise, setShowNoise] = useState(false);
   const [showIsochrones, setShowIsochrones] = useState(true);
+  /** Location suitability heatmap — off by default */
+  const [showSuitability, setShowSuitability] = useState(false);
   /** Default on: show every home that fits the selected criteria */
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(true);
   /** Overlays off by default so home pins stay the primary map signal */
@@ -47,7 +50,7 @@ export default function App() {
     progress: viewshedProgress,
   } = useOceanViewshed(listings, true);
   const { data: safetyTracts } = useSafetyTracts(
-    livabilityOverlay === "safety",
+    livabilityOverlay === "safety" || showSuitability,
   );
   const {
     isochrones,
@@ -159,6 +162,14 @@ export default function App() {
               />
               LAX noise
             </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={showSuitability}
+                onChange={(e) => setShowSuitability(e.target.checked)}
+              />
+              Best areas
+            </label>
             <label className="toolbar-select">
               Livability
               <select
@@ -190,14 +201,18 @@ export default function App() {
             </div>
           )}
           {livabilityOverlay === "safety" && <SafetyLegend />}
+          {showSuitability && <SuitabilityLegend />}
           <MapView
             anchors={anchors}
             isochrones={isochrones}
             listings={visible}
+            allListings={listings}
+            criteria={criteria}
             selectedId={selectedId}
             onSelect={setSelectedId}
             showNoise={showNoise}
             showIsochrones={showIsochrones && isoMode !== "loading"}
+            showSuitability={showSuitability}
             livabilityOverlay={livabilityOverlay}
             safetyTracts={safetyTracts}
           />

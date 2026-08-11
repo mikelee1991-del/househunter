@@ -199,16 +199,18 @@ export function CriteriaPanel({
 
       <section className="panel-section">
         <h2>Budget</h2>
-        <DualRange
-          min={1_500_000}
-          max={5_000_000}
-          step={50_000}
-          valueMin={criteria.budgetMin}
-          valueMax={criteria.budgetMax}
-          onMin={(v) => set("budgetMin", v)}
-          onMax={(v) => set("budgetMax", v)}
-          format={money}
-        />
+        <label className="field field-inline">
+          <span>Max {money(criteria.budgetMax)}</span>
+          <input
+            type="range"
+            min={1_500_000}
+            max={5_000_000}
+            step={50_000}
+            value={criteria.budgetMax}
+            onChange={(e) => set("budgetMax", Number(e.target.value))}
+            aria-label="Maximum budget"
+          />
+        </label>
       </section>
 
       <section className="panel-section">

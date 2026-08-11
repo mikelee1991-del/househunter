@@ -28,13 +28,10 @@ export function scoreListing(
     failReasons.push(`Not actively for sale (${listing.status})`);
   }
 
-  // Budget
-  if (listing.price >= criteria.budgetMin && listing.price <= criteria.budgetMax) {
+  // Budget — max only; cheaper homes still fully in budget
+  if (listing.price <= criteria.budgetMax) {
     score += 25;
     matchReasons.push("In budget");
-  } else if (listing.price < criteria.budgetMin) {
-    score += 10;
-    matchReasons.push("Under budget");
   } else {
     failReasons.push(
       `Over budget ($${(listing.price / 1e6).toFixed(2)}M > $${(criteria.budgetMax / 1e6).toFixed(2)}M)`,

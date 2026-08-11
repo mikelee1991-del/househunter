@@ -38,7 +38,8 @@ npm run ingest
 **Market inventory (pull everything, then filter in the UI):**
 
 ```bash
-npm run ingest:market   # scrape active South Bay IDX (~$1M–$12M) → listings.json
+npm run ingest:market   # scrape MB Confidential IDX (beach cities / PV / Torrance)
+npm run ingest:sereno   # Sereno CRMLS: Playa del Rey, Westchester, El Segundo, MB, …
 npm run ingest:enrich   # backfill beds/baths/sqft/photos from detail pages
 npm run ingest:verify   # re-check each MLS on Sereno; refresh price; drop sold/pending
 npm run ingest:precompute  # bake viewshed / walk / drives / default scores into listings.json
@@ -46,7 +47,7 @@ npm run ingest:precompute  # bake viewshed / walk / drives / default scores into
 # RENTCAST_API_KEY=... npm run ingest
 ```
 
-Ingest uses a wide price band; your criteria sliders filter that down. `ingest:verify` is the freshness gate — it updates ask prices from live CRMLS pages and removes sold/pending/unverifiable rows. `ingest:precompute` caches GIS scores so the map paints matches immediately. Empty scrapes never overwrite existing inventory. Add hand-vetted homes to `data/manual-listings.json`.
+`ingest:market` alone misses Playa del Rey / Westchester / El Segundo — use `ingest:sereno` for those. Ingest uses a wide price band; your criteria sliders filter that down. `ingest:verify` is the freshness gate — it updates ask prices from live CRMLS pages and removes sold/pending/unverifiable rows. `ingest:precompute` caches GIS scores so the map paints matches immediately. Empty scrapes never overwrite existing inventory. Add hand-vetted homes to `data/manual-listings.json`.
 
 ### Daily refresh
 

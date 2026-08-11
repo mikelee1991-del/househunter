@@ -41,22 +41,29 @@ export const DEFAULT_ANCHORS: Anchor[] = [
 ];
 
 export const DEFAULT_CRITERIA: Criteria = {
-  budgetMin: 2_500_000,
   budgetMax: 3_500_000,
   minBeds: 3,
   minBaths: 2,
   minSqft: 1600,
-  minOceanViewshed: 35,
-  requireOceanView: true,
+  /**
+   * Off by default so inland Westchester / El Segundo / east MB still surface.
+   * Use the Usable (~35) chip when you want an ocean/sunset wedge.
+   */
+  minOceanViewshed: 0,
+  requireOceanView: false,
   /** Deprecated: house facing no longer used — ocean/sunset viewshed matters */
   requireWestFacing: false,
   requireOutdoorSpace: true,
   requireSingleFamily: true,
   minGarageSpaces: 2,
   preferGarageSpaces: 3,
-  maxNoiseCnel: 65,
-  /** Low crime: beach cities / PV typically 80–95 */
-  minSafetyScore: 75,
+  /** 75 includes El Segundo / Westchester under the LAX 75 CNEL lobe */
+  maxNoiseCnel: 75,
+  /**
+   * Beach cities sit ~80–95; Westchester / Playa / El Segundo are ~72–78.
+   * 70 lets those northern pockets match without opening up high-crime areas.
+   */
+  minSafetyScore: 70,
   /**
    * EPA NatWalkInd band (1–20). Default: above-average floor, no upper cap
    * (most-walkable homes should not be filtered out).
@@ -67,7 +74,8 @@ export const DEFAULT_CRITERIA: Criteria = {
     spacex: 25,
     lax: 30,
     kentwood: 35,
-    torrance: 35,
+    /** Slightly looser so Del Rey / north Westchester aren’t cut by the Euclidean estimate */
+    torrance: 40,
   },
   requireWithinAllIsochrones: true,
   neighborhoods: [],
@@ -75,8 +83,10 @@ export const DEFAULT_CRITERIA: Criteria = {
 
 export const NEIGHBORHOOD_OPTIONS = [
   "Playa del Rey",
+  "Playa Vista",
   "Westchester",
   "El Segundo",
+  "Del Rey",
   "Manhattan Beach",
   "Hermosa Beach",
   "Redondo Beach",
