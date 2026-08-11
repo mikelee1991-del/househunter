@@ -19,7 +19,8 @@ import { tierColor } from "../data/safetyTiers";
 import type { IsochroneMap } from "../hooks/useIsochrones";
 import { exteriorRings } from "../lib/isochrone";
 import { isPropertyListingUrl } from "../lib/listingUrl";
-import type { Anchor, ScoredListing } from "../types";
+import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
+import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
 
 export type LivabilityOverlay = "off" | "safety" | "walk";
 
@@ -101,10 +102,14 @@ interface Props {
   anchors: Anchor[];
   isochrones: IsochroneMap;
   listings: ScoredListing[];
+  /** Full inventory (for ocean IDW samples on the suitability heatmap) */
+  allListings: Listing[];
+  criteria: Criteria;
   selectedId: string | null;
   onSelect: (id: string) => void;
   showNoise: boolean;
   showIsochrones: boolean;
+  showSuitability: boolean;
   livabilityOverlay: LivabilityOverlay;
   safetyTracts: SafetyTractsFile | null;
 }
@@ -113,10 +118,13 @@ export function MapView({
   anchors,
   isochrones,
   listings,
+  allListings,
+  criteria,
   selectedId,
   onSelect,
   showNoise,
   showIsochrones,
+  showSuitability,
   livabilityOverlay,
   safetyTracts,
 }: Props) {
@@ -143,6 +151,15 @@ export function MapView({
       />
       <FitToHomes listings={boundsList} />
       <FocusSelected listing={selected} />
+
+      <SuitabilityHeatLayer
+        enabled={showSuitability}
+        criteria={criteria}
+        anchors={anchors}
+        isochrones={isochrones}
+        listings={allListings}
+        safetyTracts={safetyTracts}
+      />
 
       {livabilityOverlay === "safety" &&
         safetyTracts?.features.map((f) => {
