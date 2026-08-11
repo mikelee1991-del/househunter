@@ -14,7 +14,7 @@ import {
 export const SUITABILITY_BOUNDS = {
   south: 33.705,
   west: -118.485,
-  north: 33.985,
+  north: 34.02,
   east: -118.235,
 } as const;
 
