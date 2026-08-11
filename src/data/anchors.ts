@@ -45,15 +45,20 @@ export const DEFAULT_CRITERIA: Criteria = {
   minBeds: 3,
   minBaths: 2,
   minSqft: 1600,
-  minOceanViewshed: 35,
-  requireOceanView: true,
+  /**
+   * Off by default so inland Westchester / El Segundo / east MB still surface.
+   * Use the Usable (~35) chip when you want an ocean/sunset wedge.
+   */
+  minOceanViewshed: 0,
+  requireOceanView: false,
   /** Deprecated: house facing no longer used — ocean/sunset viewshed matters */
   requireWestFacing: false,
   requireOutdoorSpace: true,
   requireSingleFamily: true,
   minGarageSpaces: 2,
   preferGarageSpaces: 3,
-  maxNoiseCnel: 65,
+  /** 70 includes El Segundo / Westchester / north MB under LAX path */
+  maxNoiseCnel: 70,
   /** Low crime: beach cities / PV typically 80–95 */
   minSafetyScore: 75,
   /**
@@ -74,8 +79,10 @@ export const DEFAULT_CRITERIA: Criteria = {
 
 export const NEIGHBORHOOD_OPTIONS = [
   "Playa del Rey",
+  "Playa Vista",
   "Westchester",
   "El Segundo",
+  "Del Rey",
   "Manhattan Beach",
   "Hermosa Beach",
   "Redondo Beach",

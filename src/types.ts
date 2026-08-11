@@ -56,7 +56,8 @@ export type ListingSource =
   | "realtor"
   | "manual"
   | "rentcast"
-  | "compass";
+  | "compass"
+  | "sereno";
 
 export interface Listing {
   id: string;
