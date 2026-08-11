@@ -41,7 +41,6 @@ export const DEFAULT_ANCHORS: Anchor[] = [
 ];
 
 export const DEFAULT_CRITERIA: Criteria = {
-  budgetMin: 2_500_000,
   budgetMax: 3_500_000,
   minBeds: 3,
   minBaths: 2,

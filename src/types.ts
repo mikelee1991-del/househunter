@@ -12,7 +12,7 @@ export interface Anchor {
 }
 
 export interface Criteria {
-  budgetMin: number;
+  /** Maximum list price — no minimum (cheaper homes are fine) */
   budgetMax: number;
   minBeds: number;
   minBaths: number;
