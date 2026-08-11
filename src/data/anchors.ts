@@ -74,7 +74,8 @@ export const DEFAULT_CRITERIA: Criteria = {
     spacex: 25,
     lax: 30,
     kentwood: 35,
-    torrance: 35,
+    /** Slightly looser so Del Rey / north Westchester aren’t cut by the Euclidean estimate */
+    torrance: 40,
   },
   requireWithinAllIsochrones: true,
   neighborhoods: [],
