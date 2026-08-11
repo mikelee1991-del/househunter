@@ -20,6 +20,9 @@ import type { Listing, ListingAnalysis, ListingsFile } from "../src/types";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outPath = join(root, "public", "data", "listings.json");
 
+/** Set PRECOMPUTE_FORCE=1 to recompute rows that already have analysis. */
+const SKIP_EXISTING = process.env.PRECOMPUTE_FORCE !== "1";
+
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -30,10 +33,16 @@ async function main() {
   const now = new Date().toISOString();
   const anchors = DEFAULT_ANCHORS.map((a) => ({ ...a }));
 
-  console.log(`Precomputing analysis for ${listings.length} listings…`);
+  const pending = SKIP_EXISTING
+    ? listings.filter((l) => !l.analysis)
+    : listings;
+  console.log(
+    `Precomputing analysis for ${pending.length}/${listings.length} listings` +
+      `${SKIP_EXISTING ? " (skip existing; PRECOMPUTE_FORCE=1 to redo)" : ""}…`,
+  );
 
-  for (let i = 0; i < listings.length; i += 1) {
-    const l = listings[i] as Listing;
+  for (let i = 0; i < pending.length; i += 1) {
+    const l = pending[i] as Listing;
     const n = LIVABILITY_BY_NAME[l.neighborhood];
     let walkIndex = n?.walkFallback ?? 12;
     let walkSource: ListingAnalysis["walkSource"] = "neighborhood-fallback";
@@ -125,11 +134,20 @@ async function main() {
     }
 
     console.log(
-      `[${i + 1}/${listings.length}] ${l.address} · score ${scored.score}` +
+      `[${i + 1}/${pending.length}] ${l.address} · score ${scored.score}` +
         `${scored.flagged ? " MATCH" : ""}` +
         `${scored.coreRejected ? " (core reject)" : ""}` +
         ` · view ${viewshed.score100}/100 · walk ${walkIndex}`,
     );
+
+    // Checkpoint so long runs aren't lost on interrupt
+    if ((i + 1) % 25 === 0 || i === pending.length - 1) {
+      data.generatedAt = now;
+      data.sources = [
+        ...new Set([...(data.sources ?? []), "precomputed-scores"]),
+      ];
+      writeFileSync(outPath, JSON.stringify(data, null, 2) + "\n", "utf8");
+    }
   }
 
   data.generatedAt = now;

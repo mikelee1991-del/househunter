@@ -57,10 +57,13 @@ export const DEFAULT_CRITERIA: Criteria = {
   requireSingleFamily: true,
   minGarageSpaces: 2,
   preferGarageSpaces: 3,
-  /** 70 includes El Segundo / Westchester / north MB under LAX path */
-  maxNoiseCnel: 70,
-  /** Low crime: beach cities / PV typically 80–95 */
-  minSafetyScore: 75,
+  /** 75 includes El Segundo / Westchester under the LAX 75 CNEL lobe */
+  maxNoiseCnel: 75,
+  /**
+   * Beach cities sit ~80–95; Westchester / Playa / El Segundo are ~72–78.
+   * 70 lets those northern pockets match without opening up high-crime areas.
+   */
+  minSafetyScore: 70,
   /**
    * EPA NatWalkInd band (1–20). Default: above-average floor, no upper cap
    * (most-walkable homes should not be filtered out).

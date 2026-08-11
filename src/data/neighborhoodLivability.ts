@@ -148,6 +148,30 @@ const RAW: NeighborhoodSeed[] = [
     ]),
   },
   {
+    name: "Playa Vista",
+    safetyScore: 80,
+    walkFallback: 15,
+    note: "Newer master-planned pocket; relatively low crime, solid walk scores on the campus grid.",
+    polygon: ring([
+      [33.99, -118.43],
+      [33.99, -118.40],
+      [33.96, -118.40],
+      [33.96, -118.43],
+    ]),
+  },
+  {
+    name: "Del Rey",
+    safetyScore: 74,
+    walkFallback: 14,
+    note: "Between Marina and Culver — quieter than central LA, denser than beach cities.",
+    polygon: ring([
+      [34.015, -118.445],
+      [34.015, -118.405],
+      [33.985, -118.405],
+      [33.985, -118.445],
+    ]),
+  },
+  {
     name: "Westchester",
     safetyScore: 72,
     walkFallback: 13,

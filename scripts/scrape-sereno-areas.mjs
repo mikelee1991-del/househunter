@@ -378,7 +378,25 @@ async function main() {
     }
   }
 
-  const listings = [...byMls.values()].sort((a, b) => b.price - a.price);
+  // Collapse address+zip duplicates (same home under two MLS / sources)
+  const byAddr = new Map();
+  for (const l of byMls.values()) {
+    const key = `${String(l.address).toLowerCase().replace(/\s+/g, " ")}|${l.zip}`;
+    const prev = byAddr.get(key);
+    if (!prev) {
+      byAddr.set(key, l);
+      continue;
+    }
+    const score = (x) =>
+      (x.analysis ? 4 : 0) +
+      (x.source === "sereno" ? 2 : 0) +
+      (x.garageSpaces || 0) +
+      (x.outdoorSpace ? 1 : 0) +
+      (x.photos?.length || 0) * 0.01;
+    byAddr.set(key, score(l) >= score(prev) ? { ...prev, ...l, analysis: l.analysis || prev.analysis } : { ...l, ...prev, analysis: prev.analysis || l.analysis });
+  }
+
+  const listings = [...byAddr.values()].sort((a, b) => b.price - a.price);
   const byNb = {};
   for (const l of listings) {
     byNb[l.neighborhood] = (byNb[l.neighborhood] || 0) + 1;
