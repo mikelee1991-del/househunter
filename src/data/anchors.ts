@@ -93,9 +93,17 @@ export const NEIGHBORHOOD_OPTIONS = [
   "Torrance",
   "Rancho Palos Verdes",
   "Palos Verdes Estates",
+  "Rolling Hills Estates",
   "San Pedro",
   "Marina del Rey",
   "Mar Vista",
+  "Culver City",
+  "Venice",
+  "Hawthorne",
+  "Lawndale",
+  "Lomita",
+  "Gardena",
+  "Harbor City",
 ];
 
 /** Rough west-facing: 225° (SW) through 315° (NW). */

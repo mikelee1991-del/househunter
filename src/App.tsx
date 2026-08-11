@@ -30,8 +30,8 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showNoise, setShowNoise] = useState(false);
   const [showIsochrones, setShowIsochrones] = useState(true);
-  /** Location suitability heatmap — off by default */
-  const [showSuitability, setShowSuitability] = useState(false);
+  /** Location suitability heatmap — on by default so “where to look” is obvious */
+  const [showSuitability, setShowSuitability] = useState(true);
   /** Default on: show every home that fits the selected criteria */
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(true);
   /** Overlays off by default so home pins stay the primary map signal */

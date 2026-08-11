@@ -463,6 +463,11 @@ p {
   cursor: pointer;
 }
 
+.map-toolbar label:has(input[type="checkbox"]:checked) {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .toolbar-select {
   gap: 0.35rem;
 }

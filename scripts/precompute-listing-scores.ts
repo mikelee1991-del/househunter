@@ -57,29 +57,35 @@ async function main() {
     }
     await sleep(80);
 
+    const emptyViewshed = {
+      hasOceanView: false,
+      clearRayFraction: 0,
+      score100: 0,
+      clearRays: 0,
+      testedRays: 0,
+      nearestCoastKm: 99,
+      terrainBlockedRays: 0,
+      buildingBlockedRays: 0,
+      buildingHits: 0,
+      eyeHeightM: 5.5,
+      facingUsedDeg: 270,
+      confidence: "low" as const,
+      summary: "Ocean viewshed unavailable",
+      method: "dem-los+osm-buildings" as const,
+    };
     let viewshed;
     try {
-      viewshed = await analyzeOceanViewshed({ lat: l.lat, lng: l.lng });
+      viewshed = await Promise.race([
+        analyzeOceanViewshed({ lat: l.lat, lng: l.lng }),
+        sleep(25_000).then(() => {
+          throw new Error("viewshed timeout 25s");
+        }),
+      ]);
     } catch (err) {
       console.warn(`  viewshed fail ${l.address}:`, err);
-      viewshed = {
-        hasOceanView: false,
-        clearRayFraction: 0,
-        score100: 0,
-        clearRays: 0,
-        testedRays: 0,
-        nearestCoastKm: 99,
-        terrainBlockedRays: 0,
-        buildingBlockedRays: 0,
-        buildingHits: 0,
-        eyeHeightM: 5.5,
-        facingUsedDeg: 270,
-        confidence: "low" as const,
-        summary: "Ocean viewshed unavailable",
-        method: "dem-los+osm-buildings" as const,
-      };
+      viewshed = emptyViewshed;
     }
-    await sleep(200);
+    await sleep(120);
 
     const driveMinutes = driveMinutesToAnchors(l.lat, l.lng, anchors);
     const livability = {

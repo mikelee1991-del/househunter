@@ -1,12 +1,12 @@
 /**
- * Pull active homes from Sereno CRMLS for northern South Bay areas
- * that MB Confidential indexes don't cover (Playa del Rey, Westchester,
- * El Segundo) plus Manhattan Beach subsections.
+ * Pull active homes from Sereno CRMLS across the South Bay metro
+ * (beach cities, PV, Torrance, Playa/Westchester, and nearby).
  *
  *   npm run ingest:sereno
  *
  * Merges into public/data/listings.json by MLS#. Detail pages enrich
- * garage / outdoor / description. Does not wipe existing beach-city rows.
+ * garage / outdoor / description (set SERENO_SKIP_ENRICH=1 to skip).
+ * Does not wipe existing rows from other sources.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -22,21 +22,50 @@ const MAX_PRICE = Number(process.env.INGEST_MAX_PRICE ?? 12_000_000);
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
 
-/** Sereno neighborhood IDs from /api/v0/neighborhoods/search */
+/**
+ * Sereno neighborhood / city IDs from /api/v0/neighborhoods/search.
+ * Prefer city-level IDs (they return the full city inventory).
+ */
 const NEIGHBORHOODS = [
-  { id: 38141, name: "Playa del Rey" },
-  { id: 37475, name: "Westchester" },
-  { id: 38214, name: "El Segundo" },
+  // Core beach cities
   { id: 38168, name: "Manhattan Beach" },
-  { id: 37618, name: "Manhattan Beach" }, // Sand Section
-  { id: 37538, name: "Manhattan Beach" }, // Tree Section
-  { id: 37849, name: "Manhattan Beach" }, // Hill Section
-  { id: 37919, name: "Manhattan Beach" }, // Eastside
-  { id: 37314, name: "Manhattan Beach" }, // North End
-  { id: 37774, name: "Manhattan Beach" }, // Manhattan Village
+  { id: 37618, name: "Manhattan Beach" },
+  { id: 37538, name: "Manhattan Beach" },
+  { id: 37849, name: "Manhattan Beach" },
+  { id: 37919, name: "Manhattan Beach" },
+  { id: 37314, name: "Manhattan Beach" },
+  { id: 37774, name: "Manhattan Beach" },
   { id: 38199, name: "Hermosa Beach" },
+  { id: 38134, name: "Redondo Beach" },
+  { id: 37717, name: "Redondo Beach" }, // North Redondo
+  { id: 37177, name: "Redondo Beach" }, // South Redondo
+  { id: 37837, name: "Redondo Beach" }, // Hollywood Riviera (Torrance/RB)
+  // Peninsula / inland South Bay
+  { id: 38095, name: "Torrance" },
+  { id: 38135, name: "Rancho Palos Verdes" },
+  { id: 38148, name: "Palos Verdes Estates" },
+  { id: 38131, name: "Rolling Hills Estates" },
+  { id: 38132, name: "Rolling Hills" },
+  { id: 37620, name: "San Pedro" },
+  { id: 38175, name: "Lomita" },
+  // Northern coastal / LAX corridor
+  { id: 38214, name: "El Segundo" },
+  { id: 37475, name: "Westchester" },
+  { id: 38141, name: "Playa del Rey" },
   { id: 37662, name: "Playa Vista" },
   { id: 37951, name: "Del Rey" },
+  { id: 37768, name: "Marina del Rey" },
+  { id: 38169, name: "Marina del Rey" },
+  { id: 37772, name: "Mar Vista" },
+  { id: 37955, name: "Culver City" },
+  { id: 37516, name: "Venice" },
+  // Adjacent South Bay
+  { id: 38200, name: "Hawthorne" },
+  { id: 38180, name: "Lawndale" },
+  { id: 38209, name: "Gardena" },
+  { id: 37859, name: "Harbor City" },
+  { id: 38256, name: "Alondra Park" },
+  { id: 38241, name: "Carson" },
 ];
 
 function sleep(ms) {
@@ -75,13 +104,31 @@ function normalizeNeighborhood(city, zip, fallback) {
   if (/el segundo/i.test(c)) return "El Segundo";
   if (/manhattan beach/i.test(c)) return "Manhattan Beach";
   if (/hermosa beach/i.test(c)) return "Hermosa Beach";
+  if (/redondo beach/i.test(c)) return "Redondo Beach";
   if (/playa vista/i.test(c)) return "Playa Vista";
   if (/marina/i.test(c)) return "Marina del Rey";
   if (/westchester/i.test(c)) return "Westchester";
+  if (/torrance/i.test(c)) return "Torrance";
+  if (/rancho palos verdes/i.test(c)) return "Rancho Palos Verdes";
+  if (/palos verdes estates/i.test(c)) return "Palos Verdes Estates";
+  if (/rolling hills estates/i.test(c)) return "Rolling Hills Estates";
+  if (/rolling hills/i.test(c)) return "Rolling Hills";
+  if (/san pedro/i.test(c)) return "San Pedro";
+  if (/mar vista/i.test(c)) return "Mar Vista";
+  if (/culver city/i.test(c)) return "Culver City";
+  if (/hawthorne/i.test(c)) return "Hawthorne";
+  if (/lawndale/i.test(c)) return "Lawndale";
+  if (/gardena/i.test(c)) return "Gardena";
+  if (/lomita/i.test(c)) return "Lomita";
+  if (/harbor city/i.test(c)) return "Harbor City";
+  if (/venice/i.test(c)) return "Venice";
+  if (/carson/i.test(c)) return "Carson";
   if (/los angeles/i.test(c)) {
-    if (zip === "90045" || zip === "90094") return "Westchester";
+    if (zip === "90045") return "Westchester";
+    if (zip === "90094") return "Playa Vista";
     if (zip === "90293") return "Playa del Rey";
     if (zip === "90291" || zip === "90292") return "Marina del Rey";
+    if (zip === "90066") return "Mar Vista";
     if (fallback) return fallback;
     return "Los Angeles";
   }
@@ -294,42 +341,47 @@ async function main() {
   console.log(`After filters (active SFR/condo band): ${mapped.length}`);
 
   // Enrich garage / outdoor from detail pages
+  const skipEnrich = process.env.SERENO_SKIP_ENRICH === "1";
   let enriched = 0;
-  for (let i = 0; i < mapped.length; i++) {
-    const row = mapped[i];
-    try {
-      const html = await fetchDetail(row.sourceUrl);
-      if (html) {
-        const extra = parseGarageOutdoor(html);
-        row.garageSpaces = extra.garageSpaces;
-        row.outdoorSpace = extra.outdoorSpace;
-        row.outdoorTypes = extra.outdoorTypes;
-        if (extra.description) row.description = extra.description;
-        const ocean = /ocean|catalina|pacific|sunset view|water view|strand/i.test(
-          `${row.description} ${row.address}`,
-        );
-        row.oceanView = ocean;
-        row.oceanViewConfidence = ocean ? "inferred" : "unknown";
-        // Prefer schema ask if detail disagrees with search card
-        const ask = extractAskPrice(html, {
-          minPrice: MIN_PRICE,
-          maxPrice: MAX_PRICE,
-        });
-        const schema =
-          Number(html.match(/"price"\s*:\s*(\d{6,})/)?.[1]) || 0;
-        if (schema >= MIN_PRICE && schema <= MAX_PRICE) row.price = schema;
-        else if (ask.price >= MIN_PRICE) row.price = ask.price;
-        enriched += 1;
+  if (skipEnrich) {
+    console.log("Skipping detail enrich (SERENO_SKIP_ENRICH=1)");
+  } else {
+    for (let i = 0; i < mapped.length; i++) {
+      const row = mapped[i];
+      try {
+        const html = await fetchDetail(row.sourceUrl);
+        if (html) {
+          const extra = parseGarageOutdoor(html);
+          row.garageSpaces = extra.garageSpaces;
+          row.outdoorSpace = extra.outdoorSpace;
+          row.outdoorTypes = extra.outdoorTypes;
+          if (extra.description) row.description = extra.description;
+          const ocean =
+            /ocean|catalina|pacific|sunset view|water view|strand/i.test(
+              `${row.description} ${row.address}`,
+            );
+          row.oceanView = ocean;
+          row.oceanViewConfidence = ocean ? "inferred" : "unknown";
+          const ask = extractAskPrice(html, {
+            minPrice: MIN_PRICE,
+            maxPrice: MAX_PRICE,
+          });
+          const schema =
+            Number(html.match(/"price"\s*:\s*(\d{6,})/)?.[1]) || 0;
+          if (schema >= MIN_PRICE && schema <= MAX_PRICE) row.price = schema;
+          else if (ask.price >= MIN_PRICE) row.price = ask.price;
+          enriched += 1;
+        }
+      } catch (e) {
+        console.warn(`  enrich fail ${row.address}: ${e.message}`);
       }
-    } catch (e) {
-      console.warn(`  enrich fail ${row.address}: ${e.message}`);
+      if ((i + 1) % 25 === 0 || i === mapped.length - 1) {
+        console.log(`  enriched ${i + 1}/${mapped.length}`);
+      }
+      await sleep(220);
     }
-    if ((i + 1) % 20 === 0 || i === mapped.length - 1) {
-      console.log(`  enriched ${i + 1}/${mapped.length}`);
-    }
-    await sleep(280);
+    console.log(`Detail enrich ok: ${enriched}/${mapped.length}`);
   }
-  console.log(`Detail enrich ok: ${enriched}/${mapped.length}`);
 
   const existing = existsSync(outPath)
     ? JSON.parse(readFileSync(outPath, "utf8"))
