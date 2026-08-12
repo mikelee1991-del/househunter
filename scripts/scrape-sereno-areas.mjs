@@ -4,9 +4,21 @@
  *
  *   npm run ingest:sereno
  *
+ * Strategy (free path — Sereno caps each query at ~200 rows, no pagination):
+ *   1) City + subsection neighborhood IDs
+ *   2) Auto price-band split when a query returns exactly 200
+ *   3) ZIP searchString pass for full metro coverage under the cap
+ *
  * Merges into public/data/listings.json by MLS#. Detail pages enrich
  * garage / outdoor / description (set SERENO_SKIP_ENRICH=1 to skip).
  * Does not wipe existing rows from other sources.
+ *
+ * Env:
+ *   INGEST_MIN_PRICE   default 500000
+ *   INGEST_MAX_PRICE   default 12000000
+ *   SERENO_SKIP_ENRICH=1
+ *   SERENO_ZIPS_ONLY=1     skip neighborhood queries (debug)
+ *   SERENO_SKIP_ZIPS=1     skip zip pass
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -17,37 +29,68 @@ import { extractAskPrice } from "./lib/parseListingPrice.mjs";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outPath = join(root, "public", "data", "listings.json");
 
-const MIN_PRICE = Number(process.env.INGEST_MIN_PRICE ?? 800_000);
+const MIN_PRICE = Number(process.env.INGEST_MIN_PRICE ?? 500_000);
 const MAX_PRICE = Number(process.env.INGEST_MAX_PRICE ?? 12_000_000);
+const RESULT_CAP = 200;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
 
 /**
- * Sereno neighborhood / city IDs from /api/v0/neighborhoods/search.
- * Prefer city-level IDs (they return the full city inventory).
+ * Sereno neighborhood / city IDs from GET /api/v0/neighborhoods/search?q=…
+ * Prefer city-level IDs plus subsections for cities that hit the 200-row cap.
  */
 const NEIGHBORHOODS = [
-  // Core beach cities
+  // Manhattan Beach (city + sections)
   { id: 38168, name: "Manhattan Beach" },
-  { id: 37618, name: "Manhattan Beach" },
-  { id: 37538, name: "Manhattan Beach" },
-  { id: 37849, name: "Manhattan Beach" },
-  { id: 37919, name: "Manhattan Beach" },
-  { id: 37314, name: "Manhattan Beach" },
-  { id: 37774, name: "Manhattan Beach" },
+  { id: 37618, name: "Manhattan Beach" }, // Sand
+  { id: 37538, name: "Manhattan Beach" }, // Tree
+  { id: 37849, name: "Manhattan Beach" }, // Hill
+  { id: 37919, name: "Manhattan Beach" }, // Eastside
+  { id: 37314, name: "Manhattan Beach" }, // North End
+  { id: 37774, name: "Manhattan Beach" }, // Manhattan Village
   { id: 38199, name: "Hermosa Beach" },
+  // Redondo (city + sections)
   { id: 38134, name: "Redondo Beach" },
-  { id: 37717, name: "Redondo Beach" }, // North Redondo
-  { id: 37177, name: "Redondo Beach" }, // South Redondo
-  { id: 37837, name: "Redondo Beach" }, // Hollywood Riviera (Torrance/RB)
-  // Peninsula / inland South Bay
+  { id: 37717, name: "Redondo Beach" }, // North
+  { id: 37177, name: "Redondo Beach" }, // South
+  { id: 37837, name: "Redondo Beach" }, // Hollywood Riviera
+  { id: 37374, name: "Redondo Beach" }, // Golden Hills
+  { id: 37390, name: "Redondo Beach" }, // El Nido
+  // Torrance (city + subsections — city alone caps at 200)
   { id: 38095, name: "Torrance" },
+  { id: 37185, name: "Torrance" }, // North
+  { id: 37199, name: "Torrance" }, // Central
+  { id: 37476, name: "Torrance" }, // West
+  { id: 37591, name: "Torrance" }, // South
+  { id: 37588, name: "Torrance" }, // Southeast
+  { id: 37707, name: "Torrance" }, // Northwest
+  { id: 37713, name: "Torrance" }, // Northeast
+  { id: 37490, name: "Torrance" }, // Walteria
+  { id: 37694, name: "Torrance" }, // Olde Torrance
+  { id: 37785, name: "Torrance" }, // Madrona
+  { id: 37586, name: "Torrance" }, // Southwood
+  { id: 37653, name: "Torrance" }, // Pueblo
+  { id: 38038, name: "Torrance" }, // Belmar
+  { id: 37950, name: "Torrance" }, // Delthome
+  // Peninsula
   { id: 38135, name: "Rancho Palos Verdes" },
   { id: 38148, name: "Palos Verdes Estates" },
   { id: 38131, name: "Rolling Hills Estates" },
   { id: 38132, name: "Rolling Hills" },
+  { id: 38147, name: "Rancho Palos Verdes" }, // Peninsula umbrella
+  { id: 37786, name: "Palos Verdes Estates" }, // Lunada Bay
+  { id: 37781, name: "Palos Verdes Estates" }, // Malaga Cove
+  { id: 37745, name: "Palos Verdes Estates" }, // Monte Malaga
+  { id: 37752, name: "Rancho Palos Verdes" }, // Miraleste
+  { id: 37395, name: "Rancho Palos Verdes" }, // Eastview
+  // San Pedro subsections
   { id: 37620, name: "San Pedro" },
+  { id: 37304, name: "San Pedro" }, // Northwest
+  { id: 37409, name: "San Pedro" }, // Coastal
+  { id: 37414, name: "San Pedro" }, // Central
   { id: 38175, name: "Lomita" },
+  { id: 37859, name: "Harbor City" },
+  { id: 38068, name: "Wilmington" },
   // Northern coastal / LAX corridor
   { id: 38214, name: "El Segundo" },
   { id: 37475, name: "Westchester" },
@@ -61,11 +104,91 @@ const NEIGHBORHOODS = [
   { id: 37516, name: "Venice" },
   // Adjacent South Bay
   { id: 38200, name: "Hawthorne" },
+  { id: 37196, name: "Hawthorne" }, // East
+  { id: 37726, name: "Hawthorne" }, // North
+  { id: 37651, name: "Hawthorne" }, // Ramona
+  { id: 37843, name: "Hawthorne" }, // Holly Glen
   { id: 38180, name: "Lawndale" },
+  { id: 37804, name: "Lawndale" }, // Lawndale Acres
   { id: 38209, name: "Gardena" },
-  { id: 37859, name: "Harbor City" },
+  { id: 37727, name: "Gardena" }, // North
+  { id: 37990, name: "Gardena" }, // Central
+  { id: 37263, name: "Gardena" }, // South Gardena (LA)
   { id: 38256, name: "Alondra Park" },
   { id: 38241, name: "Carson" },
+  { id: 38079, name: "Carson" }, // West Carson
+  { id: 37186, name: "Carson" }, // North
+  { id: 37197, name: "Carson" }, // East
+  { id: 37598, name: "Carson" }, // South
+  { id: 37992, name: "Carson" }, // Central
+  // Inglewood / Lennox (LAX east edge)
+  { id: 38195, name: "Inglewood" },
+  { id: 37723, name: "Inglewood" }, // North
+  { id: 37739, name: "Inglewood" }, // Morningside Park
+  { id: 37362, name: "Inglewood" }, // Hollywood Park
+  { id: 38178, name: "Lennox" },
+];
+
+/** South Bay + LAX-corridor ZIPs — each stays under Sereno's 200-row cap. */
+const ZIPS = [
+  // Beach cities
+  "90266", // Manhattan Beach
+  "90254", // Hermosa Beach
+  "90277", // Redondo Beach
+  "90278", // Redondo Beach / North
+  "90245", // El Segundo
+  // Torrance
+  "90501",
+  "90502",
+  "90503",
+  "90504",
+  "90505",
+  // Peninsula / San Pedro
+  "90274", // PVE / RHE
+  "90275", // RPV
+  "90717", // Lomita
+  "90731", // San Pedro
+  "90732", // San Pedro
+  "90710", // Harbor City
+  "90744", // Wilmington
+  // Carson
+  "90745",
+  "90746",
+  "90810", // Carson / LB edge
+  // Northern coastal
+  "90045", // Westchester
+  "90293", // Playa del Rey
+  "90094", // Playa Vista
+  "90291", // Venice
+  "90292", // Marina del Rey
+  "90066", // Mar Vista / Del Rey
+  "90230", // Culver City
+  "90232", // Culver City
+  "90405", // Santa Monica south edge
+  // Inland South Bay
+  "90250", // Hawthorne
+  "90260", // Lawndale
+  "90247", // Gardena
+  "90248", // Gardena
+  "90249", // Gardena / Hawthorne
+  // Inglewood / Lennox
+  "90301",
+  "90302",
+  "90303",
+  "90304",
+  "90305",
+];
+
+/** Price bands used when a single query returns the 200-row cap. */
+const PRICE_BANDS = [
+  [0, 700_000],
+  [700_000, 900_000],
+  [900_000, 1_100_000],
+  [1_100_000, 1_400_000],
+  [1_400_000, 1_800_000],
+  [1_800_000, 2_500_000],
+  [2_500_000, 4_000_000],
+  [4_000_000, 20_000_000],
 ];
 
 function sleep(ms) {
@@ -121,14 +244,19 @@ function normalizeNeighborhood(city, zip, fallback) {
   if (/gardena/i.test(c)) return "Gardena";
   if (/lomita/i.test(c)) return "Lomita";
   if (/harbor city/i.test(c)) return "Harbor City";
+  if (/wilmington/i.test(c)) return "Wilmington";
   if (/venice/i.test(c)) return "Venice";
   if (/carson/i.test(c)) return "Carson";
+  if (/inglewood/i.test(c)) return "Inglewood";
+  if (/lennox/i.test(c)) return "Lennox";
   if (/los angeles/i.test(c)) {
     if (zip === "90045") return "Westchester";
     if (zip === "90094") return "Playa Vista";
     if (zip === "90293") return "Playa del Rey";
     if (zip === "90291" || zip === "90292") return "Marina del Rey";
     if (zip === "90066") return "Mar Vista";
+    if (zip === "90731" || zip === "90732") return "San Pedro";
+    if (zip === "90744") return "Wilmington";
     if (fallback) return fallback;
     return "Los Angeles";
   }
@@ -248,9 +376,20 @@ function rowFromSearch(d, neighborhoodHint) {
   };
 }
 
-async function searchSereno(page, token, neighborhoodIds) {
+async function searchSereno(page, token, { neighborhoodIds, searchString, minPrice, maxPrice }) {
   return page.evaluate(
-    async ({ token, neighborhoodIds }) => {
+    async ({ token, neighborhoodIds, searchString, minPrice, maxPrice }) => {
+      const searchFilters = {
+        listingCategory: "residential",
+        listingType: "non-rental",
+        propertyStatus: "active",
+        searchType: "residential",
+        source: "W",
+      };
+      if (neighborhoodIds?.length) searchFilters.neighborhoods = neighborhoodIds;
+      if (minPrice != null) searchFilters.minPrice = minPrice;
+      if (maxPrice != null) searchFilters.maxPrice = maxPrice;
+
       const r = await fetch("/api/v0/listings/search", {
         method: "POST",
         headers: {
@@ -262,15 +401,8 @@ async function searchSereno(page, token, neighborhoodIds) {
         },
         body: JSON.stringify({
           requestID: 1,
-          searchString: "",
-          searchFilters: {
-            listingCategory: "residential",
-            listingType: "non-rental",
-            neighborhoods: neighborhoodIds,
-            propertyStatus: "active",
-            searchType: "residential",
-            source: "W",
-          },
+          searchString: searchString || "",
+          searchFilters,
           mbr: null,
           commercial: false,
           customHeading: true,
@@ -281,8 +413,67 @@ async function searchSereno(page, token, neighborhoodIds) {
       }
       return r.json();
     },
-    { token, neighborhoodIds },
+    { token, neighborhoodIds, searchString, minPrice, maxPrice },
   );
+}
+
+/**
+ * Fetch all rows for a query, splitting on price when Sereno's 200-row cap is hit.
+ */
+async function collectQuery(page, token, label, opts) {
+  const json = await searchSereno(page, token, opts);
+  if (json.error) {
+    console.warn(`  ${label}: ${json.error}`);
+    return [];
+  }
+  const rows = json.data || [];
+  if (rows.length < RESULT_CAP) {
+    console.log(`  ${label}: ${rows.length} raw`);
+    return rows;
+  }
+
+  console.log(`  ${label}: ${rows.length} (cap) → price bands`);
+  const byLn = new Map();
+  for (const [lo, hi] of PRICE_BANDS) {
+    const bandLabel = `${label} $${(lo / 1000) | 0}k–$${hi >= 1e6 ? `${(hi / 1e6).toFixed(1)}M` : `${(hi / 1000) | 0}k`}`;
+    const band = await searchSereno(page, token, {
+      ...opts,
+      minPrice: lo,
+      maxPrice: hi,
+    });
+    if (band.error) {
+      console.warn(`    ${bandLabel}: ${band.error}`);
+      continue;
+    }
+    const bandRows = band.data || [];
+    console.log(`    ${bandLabel}: ${bandRows.length}`);
+    for (const d of bandRows) {
+      const ln = String(d.LN || "").toUpperCase();
+      if (ln) byLn.set(ln, d);
+    }
+    // If a band itself hits the cap, recurse once with tighter halves
+    if (bandRows.length >= RESULT_CAP && hi - lo > 100_000) {
+      const mid = Math.round((lo + hi) / 2);
+      for (const [a, b] of [
+        [lo, mid],
+        [mid, hi],
+      ]) {
+        const sub = await searchSereno(page, token, {
+          ...opts,
+          minPrice: a,
+          maxPrice: b,
+        });
+        for (const d of sub.data || []) {
+          const ln = String(d.LN || "").toUpperCase();
+          if (ln) byLn.set(ln, d);
+        }
+        await sleep(250);
+      }
+    }
+    await sleep(300);
+  }
+  console.log(`  ${label}: ${byLn.size} after bands`);
+  return [...byLn.values()];
 }
 
 function mlsKey(listing) {
@@ -294,8 +485,55 @@ function mlsKey(listing) {
   return `${m[1].toUpperCase()}${m[2]}`;
 }
 
+function zipHint(zip) {
+  const map = {
+    "90266": "Manhattan Beach",
+    "90254": "Hermosa Beach",
+    "90277": "Redondo Beach",
+    "90278": "Redondo Beach",
+    "90245": "El Segundo",
+    "90501": "Torrance",
+    "90502": "Torrance",
+    "90503": "Torrance",
+    "90504": "Torrance",
+    "90505": "Torrance",
+    "90274": "Palos Verdes Estates",
+    "90275": "Rancho Palos Verdes",
+    "90717": "Lomita",
+    "90731": "San Pedro",
+    "90732": "San Pedro",
+    "90710": "Harbor City",
+    "90744": "Wilmington",
+    "90745": "Carson",
+    "90746": "Carson",
+    "90810": "Carson",
+    "90045": "Westchester",
+    "90293": "Playa del Rey",
+    "90094": "Playa Vista",
+    "90291": "Venice",
+    "90292": "Marina del Rey",
+    "90066": "Mar Vista",
+    "90230": "Culver City",
+    "90232": "Culver City",
+    "90405": "Santa Monica",
+    "90250": "Hawthorne",
+    "90260": "Lawndale",
+    "90247": "Gardena",
+    "90248": "Gardena",
+    "90249": "Gardena",
+    "90301": "Inglewood",
+    "90302": "Inglewood",
+    "90303": "Inglewood",
+    "90304": "Lennox",
+    "90305": "Inglewood",
+  };
+  return map[zip] || null;
+}
+
 async function main() {
-  console.log("Sereno northern South Bay ingest…");
+  console.log(
+    `Sereno metro ingest ($${MIN_PRICE.toLocaleString()}–$${MAX_PRICE.toLocaleString()})…`,
+  );
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto("https://www.sereno.com/search", {
@@ -311,23 +549,41 @@ async function main() {
     throw new Error("No CSRF token from Sereno");
   }
 
-  // Search one neighborhood at a time — Sereno caps a single query at ~200 rows
-  const byLn = new Map();
-  for (const nb of NEIGHBORHOODS) {
-    const json = await searchSereno(page, token, [nb.id]);
-    if (json.error) {
-      console.warn(`  ${nb.name}: ${json.error}`);
-      continue;
+  const byLn = new Map(); // LN → { d, hint }
+
+  if (process.env.SERENO_ZIPS_ONLY !== "1") {
+    console.log(`Neighborhood queries (${NEIGHBORHOODS.length})…`);
+    for (const nb of NEIGHBORHOODS) {
+      const rows = await collectQuery(page, token, `${nb.name} (${nb.id})`, {
+        neighborhoodIds: [nb.id],
+      });
+      for (const d of rows) {
+        const ln = String(d.LN || "").toUpperCase();
+        if (!ln) continue;
+        if (!byLn.has(ln)) byLn.set(ln, { d, hint: nb.name });
+      }
+      await sleep(350);
     }
-    const rows = json.data || [];
-    console.log(`  ${nb.name} (${nb.id}): ${rows.length} raw`);
-    for (const d of rows) {
-      const ln = String(d.LN || "").toUpperCase();
-      if (!ln) continue;
-      if (!byLn.has(ln)) byLn.set(ln, { d, hint: nb.name });
-    }
-    await sleep(400);
   }
+
+  if (process.env.SERENO_SKIP_ZIPS !== "1") {
+    console.log(`ZIP queries (${ZIPS.length})…`);
+    for (const zip of ZIPS) {
+      const rows = await collectQuery(page, token, `ZIP ${zip}`, {
+        searchString: zip,
+      });
+      const hint = zipHint(zip);
+      for (const d of rows) {
+        const ln = String(d.LN || "").toUpperCase();
+        if (!ln) continue;
+        // Prefer exact zip match when searchString returns extras
+        if (String(d.zip) !== zip) continue;
+        if (!byLn.has(ln)) byLn.set(ln, { d, hint: hint || d.city });
+      }
+      await sleep(350);
+    }
+  }
+
   await browser.close();
 
   const raw = [...byLn.values()];
@@ -340,7 +596,6 @@ async function main() {
   }
   console.log(`After filters (active SFR/condo band): ${mapped.length}`);
 
-  // Enrich garage / outdoor from detail pages
   const skipEnrich = process.env.SERENO_SKIP_ENRICH === "1";
   let enriched = 0;
   if (skipEnrich) {
@@ -401,7 +656,6 @@ async function main() {
     delete row._mls;
     const prev = byMls.get(mls);
     if (prev) {
-      // Keep precomputed analysis when coordinates unchanged
       const keepAnalysis =
         prev.analysis &&
         Math.abs(prev.lat - row.lat) < 1e-4 &&
@@ -412,7 +666,6 @@ async function main() {
         ...prev,
         ...row,
         id: prev.id?.startsWith("sereno-") ? row.id : prev.id,
-        // Never downgrade known garage / outdoor from a prior enrich
         garageSpaces: Math.max(prev.garageSpaces || 0, row.garageSpaces || 0),
         outdoorSpace: Boolean(prev.outdoorSpace || row.outdoorSpace),
         outdoorTypes:
@@ -430,7 +683,6 @@ async function main() {
     }
   }
 
-  // Collapse address+zip duplicates (same home under two MLS / sources)
   const byAddr = new Map();
   for (const l of byMls.values()) {
     const key = `${String(l.address).toLowerCase().replace(/\s+/g, " ")}|${l.zip}`;
@@ -445,7 +697,12 @@ async function main() {
       (x.garageSpaces || 0) +
       (x.outdoorSpace ? 1 : 0) +
       (x.photos?.length || 0) * 0.01;
-    byAddr.set(key, score(l) >= score(prev) ? { ...prev, ...l, analysis: l.analysis || prev.analysis } : { ...l, ...prev, analysis: prev.analysis || l.analysis });
+    byAddr.set(
+      key,
+      score(l) >= score(prev)
+        ? { ...prev, ...l, analysis: l.analysis || prev.analysis }
+        : { ...l, ...prev, analysis: prev.analysis || l.analysis },
+    );
   }
 
   const listings = [...byAddr.values()].sort((a, b) => b.price - a.price);
@@ -456,9 +713,7 @@ async function main() {
 
   const out = {
     generatedAt: new Date().toISOString(),
-    sources: [
-      ...new Set([...(existing.sources || []), "sereno-areas"]),
-    ],
+    sources: [...new Set([...(existing.sources || []), "sereno-areas"])],
     listings,
   };
   writeFileSync(outPath, JSON.stringify(out, null, 2));

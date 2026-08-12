@@ -6,7 +6,7 @@ Interactive map for finding ocean-view, generally west-facing homes in the Los A
 - Approximate **LAX CNEL noise** bands
 - **Low crime + moderate walkability**: neighborhood safety index, EPA National Walkability Index per listing, safety×walk scatter with a target zone, and map choropleth
 - **Ocean viewshed (0–100)**: GIS score of ocean + sunset visibility — % of rays toward the Pacific (SW–NW sunset band) that clear DEM terrain + nearby OSM buildings. House facing is ignored. ≥~35 with 2+ clear rays counts as a view. Screening model, not a survey.
-- Budget slider (default **$2.5M–$3.5M**) and other settable criteria
+- Max-budget slider and other settable criteria
 - Listings merged from multiple sources, refreshed **daily** via GitHub Actions
 - Automatic **match flagging** against your criteria
 
@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-Open the local URL Vite prints. Use the left panel to tune budget, beds, ocean/sunset viewshed, noise ceiling, drive-time limits, and place addresses.
+Open the local URL Vite prints. Use the left panel to tune max budget, beds, ocean/sunset viewshed, noise ceiling, drive-time limits, and place addresses.
 
 ## Live listing sources
 
@@ -35,22 +35,23 @@ npm run ingest
 
 **Isochrones:** Default is [Valhalla](https://valhalla1.openstreetmap.de/isochrone) on the FOSSGIS public demo — Dijkstra expansion on the OSM road graph (speed limits, road class, turns), matching SimpleMapLab. Listing flags use point-in-polygon against those shapes.
 
-**Market inventory (pull everything, then filter in the UI):**
+**Free market inventory (no paid MLS):** Prefer running ingest on a **local** machine. Sereno is the reliable free CRMLS path; Redfin/MB Confidential are often blocked from cloud/datacenter IPs.
 
 ```bash
-npm run ingest:all      # Sereno CRMLS + Redfin + MB Confidential (merge, never wipe)
-npm run ingest:sereno   # Sereno CRMLS across South Bay metro
-npm run ingest:redfin   # Redfin GIS scrape (cities + LA neighborhoods)
-npm run ingest:market   # MB Confidential IDX (often 403 from cloud IPs)
-npm run ingest:enrich   # backfill beds/baths/sqft/photos from detail pages
-npm run ingest:verify   # re-check each MLS on Sereno; refresh price; drop sold/pending
-npm run ingest:precompute  # bake viewshed / walk / drives / default scores into listings.json
-# or, with a key for fuller MLS coverage:
+npx playwright install chromium   # once, for Sereno/Redfin scrapers
+npm run ingest:all                 # Sereno + Redfin + MBC (merge, never wipe)
+INGEST_SERENO_ONLY=1 npm run ingest:all   # maximize free Sereno only
+npm run ingest:sereno              # neighborhoods + ZIP pass + price-band splits
+SERENO_SKIP_ENRICH=1 npm run ingest:sereno  # search merge only (faster)
+npm run ingest:redfin              # Redfin GIS (best locally)
+npm run ingest:market              # MB Confidential IDX (often 403 from cloud)
+npm run ingest:verify              # re-check MLS on Sereno; drop sold/pending
+INGEST_PRECOMPUTE=1 npm run ingest:all     # then bake GIS / default scores
+# optional paid path:
 # RENTCAST_API_KEY=... npm run ingest
-# INGEST_PRECOMPUTE=1 npm run ingest:all
 ```
 
-We do **not** have a paid MLS feed in this environment — inventory comes from public CRMLS surfaces (Sereno), Redfin GIS, and MB Confidential IDX. Ingest uses a wide price band; your criteria sliders filter that down. `ingest:verify` is the freshness gate. `ingest:precompute` caches GIS scores so the map paints matches immediately. Empty scrapes never overwrite existing inventory. Add hand-vetted homes to `data/manual-listings.json`.
+Sereno caps each API query at ~200 rows with no pagination. The free scraper beats that by querying city **subsections**, splitting capped queries into **price bands**, and running a South Bay **ZIP** pass (`INGEST_MIN_PRICE` default `$500k`). Empty scrapes never wipe inventory. `ingest:precompute` caches GIS scores so the map paints matches immediately. Add hand-vetted homes to `data/manual-listings.json`.
 
 ### Daily refresh
 
