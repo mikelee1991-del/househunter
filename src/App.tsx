@@ -229,12 +229,21 @@ export default function App() {
             {selected && (
               <div className="pick liv-pick">
                 <p className="eyebrow">
-                  {selected.flagged ? "Best match — go see it" : "Selected home"}
+                  {selected.status === "pending"
+                    ? "Pending sale — under contract"
+                    : selected.flagged
+                      ? "Best match — go see it"
+                      : "Selected home"}
                 </p>
                 <h2>
                   {selected.address} · $
                   {(selected.price / 1e6).toFixed(2)}M
                 </h2>
+                {selected.status === "pending" && (
+                  <p className="pick-pending">
+                    This home is in the process of being sold
+                  </p>
+                )}
                 <p className="pick-meta">
                   {selected.neighborhood} · {selected.beds} bd ·{" "}
                   {selected.baths} ba · {selected.sqft.toLocaleString()} sqft

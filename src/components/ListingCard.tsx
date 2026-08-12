@@ -1,4 +1,5 @@
 import { isPropertyListingUrl } from "../lib/listingUrl";
+import { isPendingSaleStatus, pendingSaleLabel } from "../lib/listingStatus";
 import type { Criteria, ScoredListing } from "../types";
 import { LivabilityMeters } from "./LivabilityMeters";
 
@@ -12,9 +13,11 @@ interface Props {
 export function ListingCard({ listing, criteria, selected, onSelect }: Props) {
   const photo = listing.photos[0];
   const buyable = isPropertyListingUrl(listing.sourceUrl);
+  const pending = isPendingSaleStatus(listing.status);
+  const pendingLabel = pendingSaleLabel(listing.status);
   return (
     <article
-      className={`listing-card ${selected ? "selected" : ""} ${listing.flagged ? "flagged" : ""}`}
+      className={`listing-card ${selected ? "selected" : ""} ${listing.flagged ? "flagged" : ""} ${pending ? "is-pending" : ""}`}
       onClick={onSelect}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onSelect();
@@ -30,6 +33,9 @@ export function ListingCard({ listing, criteria, selected, onSelect }: Props) {
             : { background: "var(--surface-2)" }
         }
       >
+        {pending && pendingLabel && (
+          <span className="status-badge pending-badge">{pendingLabel}</span>
+        )}
         {listing.flagged && <span className="flag-badge">Match</span>}
         <span className="price-badge">
           ${(listing.price / 1_000_000).toFixed(2)}M

@@ -18,6 +18,7 @@ import type { SafetyTractsFile } from "../data/safetyTiers";
 import { tierColor } from "../data/safetyTiers";
 import type { IsochroneMap } from "../hooks/useIsochrones";
 import { exteriorRings } from "../lib/isochrone";
+import { isPendingSaleStatus, pendingSaleLabel } from "../lib/listingStatus";
 import { isPropertyListingUrl } from "../lib/listingUrl";
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
@@ -67,16 +68,26 @@ function anchorIcon(color: string) {
 
 function homeIcon(listing: ScoredListing, selected: boolean) {
   const price = `$${(listing.price / 1e6).toFixed(2)}M`;
-  const state = selected ? "is-selected" : listing.flagged ? "is-match" : "";
+  const pending = isPendingSaleStatus(listing.status);
+  const state = [
+    selected ? "is-selected" : "",
+    listing.flagged ? "is-match" : "",
+    pending ? "is-pending" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const pendingMark = pending
+    ? `<span class="home-pin-pending" title="Pending sale / under contract">Pending</span>`
+    : "";
   return L.divIcon({
     className: `home-marker ${state}`,
     html: `
-      <div class="home-pin" title="${listing.address}">
+      <div class="home-pin" title="${listing.address}${pending ? " (pending sale)" : ""}">
         <span class="home-pin-dot"></span>
-        <span class="home-pin-label">${price}</span>
+        <span class="home-pin-label">${price}${pendingMark}</span>
       </div>
     `,
-    iconSize: [72, 36],
+    iconSize: [pending ? 118 : 72, 36],
     iconAnchor: [12, 18],
     popupAnchor: [24, -10],
   });
@@ -265,12 +276,15 @@ export function MapView({
       {/* Homes last + high z-index: primary map signal */}
       {listings.map((l) => {
         const isSelected = l.id === selectedId;
+        const pendingLabel = pendingSaleLabel(l.status);
         return (
           <Marker
             key={l.id}
             position={[l.lat, l.lng]}
             icon={homeIcon(l, isSelected)}
-            zIndexOffset={isSelected ? 2000 : l.flagged ? 1500 : 1000}
+            zIndexOffset={
+              isSelected ? 2000 : l.flagged ? 1500 : pendingLabel ? 1200 : 1000
+            }
             eventHandlers={{ click: () => onSelect(l.id) }}
           >
             <Popup className="home-popup" maxWidth={280}>
@@ -278,7 +292,11 @@ export function MapView({
                 <p className="home-popup-price">
                   ${(l.price / 1e6).toFixed(2)}M
                   {l.flagged ? " · Match" : ""}
+                  {pendingLabel ? ` · ${pendingLabel}` : ""}
                 </p>
+                {pendingLabel && (
+                  <p className="home-popup-pending">{pendingLabel} — under contract</p>
+                )}
                 <p className="home-popup-addr">{l.address}</p>
                 <p className="home-popup-meta">
                   {l.neighborhood} · {l.beds} bd · {l.baths} ba ·{" "}

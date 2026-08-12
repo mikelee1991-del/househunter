@@ -193,7 +193,7 @@ export function CriteriaPanel({
         </p>
         <div className="match-pill">
           <strong>{flaggedCount}</strong> match criteria
-          <span className="match-pill-sub"> of {totalCount} active</span>
+          <span className="match-pill-sub"> of {totalCount} on market</span>
         </div>
       </header>
 

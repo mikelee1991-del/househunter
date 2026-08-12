@@ -48,6 +48,26 @@ export function inferMarketStatusFromHtml(
   return "unknown";
 }
 
+/** Still actively marketable (not pending / sold). */
 export function isBuyableMarketStatus(status: MarketStatus | string): boolean {
   return status === "active";
+}
+
+/**
+ * Show on the map / results list. Includes pending / under-contract /
+ * contingent so buyers can see what's mid-sale (with a UI indicator).
+ * Sold / unknown stay hidden.
+ */
+export function isVisibleMarketStatus(status: MarketStatus | string): boolean {
+  return status === "active" || status === "pending";
+}
+
+export function isPendingSaleStatus(status: MarketStatus | string): boolean {
+  return status === "pending";
+}
+
+/** Short label for badges / map pins. */
+export function pendingSaleLabel(status: MarketStatus | string): string | null {
+  if (status !== "pending") return null;
+  return "Pending sale";
 }

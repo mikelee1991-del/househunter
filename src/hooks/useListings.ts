@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { priceConflictsWithDescription } from "../lib/listingPrice";
-import { isBuyableMarketStatus } from "../lib/listingStatus";
+import { isVisibleMarketStatus } from "../lib/listingStatus";
 import { isPropertyListingUrl } from "../lib/listingUrl";
 import type { ListingsFile } from "../types";
 
@@ -19,9 +19,9 @@ export function useListings() {
         const res = await fetch(`/data/listings.json?t=${Date.now()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as ListingsFile;
-        // Active property pages only; drop incomplete scrapes (no beds/price)
+        // Active + pending (under contract); drop sold / incomplete scrapes
         const listings = (json.listings ?? []).filter((l) => {
-          if (!isBuyableMarketStatus(l.status)) return false;
+          if (!isVisibleMarketStatus(l.status)) return false;
           if (!isPropertyListingUrl(l.sourceUrl)) return false;
           if (!(l.price > 0)) return false;
           if (!(l.beds > 0) || !(l.baths > 0)) return false;

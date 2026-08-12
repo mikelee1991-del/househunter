@@ -263,15 +263,27 @@ function normalizeNeighborhood(city, zip, fallback) {
   return fallback || c || "Los Angeles";
 }
 
-function isActiveStatus(status) {
+/** Map Sereno MLS status → our inventory status. Null = skip (sold/off-market). */
+function mapMarketStatus(status) {
   const s = String(status || "").toLowerCase();
-  return (
+  if (
+    s === "pending" ||
+    s === "contingent" ||
+    s === "active under contract" ||
+    s === "under contract"
+  ) {
+    return "pending";
+  }
+  if (
     s === "active" ||
     s === "new" ||
     s === "price change" ||
     s === "coming soon" ||
     s === "open house"
-  );
+  ) {
+    return "active";
+  }
+  return null;
 }
 
 function parseGarageOutdoor(html) {
@@ -322,7 +334,8 @@ async function fetchDetail(url) {
 function rowFromSearch(d, neighborhoodHint) {
   const propertyType = mapPropertyType(d.type);
   if (!propertyType) return null;
-  if (!isActiveStatus(d.status)) return null;
+  const marketStatus = mapMarketStatus(d.status);
+  if (!marketStatus) return null;
   const price = Number(d.rawPrice) || 0;
   if (price < MIN_PRICE || price > MAX_PRICE) return null;
   if (!d.lat || !d.lng) return null;
@@ -368,7 +381,7 @@ function rowFromSearch(d, neighborhoodHint) {
     oceanViewConfidence: "unknown",
     photos: d.imageUrl ? [d.imageUrl] : [],
     description: `${propertyType} in ${neighborhood}`,
-    status: "active",
+    status: marketStatus,
     listedAt,
     updatedAt: now,
     noiseCnel: estimateNoiseCnel(d.lat, d.lng),
@@ -376,13 +389,24 @@ function rowFromSearch(d, neighborhoodHint) {
   };
 }
 
-async function searchSereno(page, token, { neighborhoodIds, searchString, minPrice, maxPrice }) {
+async function searchSereno(
+  page,
+  token,
+  { neighborhoodIds, searchString, minPrice, maxPrice, propertyStatus = "active" },
+) {
   return page.evaluate(
-    async ({ token, neighborhoodIds, searchString, minPrice, maxPrice }) => {
+    async ({
+      token,
+      neighborhoodIds,
+      searchString,
+      minPrice,
+      maxPrice,
+      propertyStatus,
+    }) => {
       const searchFilters = {
         listingCategory: "residential",
         listingType: "non-rental",
-        propertyStatus: "active",
+        propertyStatus,
         searchType: "residential",
         source: "W",
       };
@@ -413,7 +437,7 @@ async function searchSereno(page, token, { neighborhoodIds, searchString, minPri
       }
       return r.json();
     },
-    { token, neighborhoodIds, searchString, minPrice, maxPrice },
+    { token, neighborhoodIds, searchString, minPrice, maxPrice, propertyStatus },
   );
 }
 
@@ -579,6 +603,25 @@ async function main() {
         // Prefer exact zip match when searchString returns extras
         if (String(d.zip) !== zip) continue;
         if (!byLn.has(ln)) byLn.set(ln, { d, hint: hint || d.city });
+      }
+      await sleep(350);
+    }
+
+    // Pending / under-contract pass — Sereno's "active" filter still returns
+    // Contingent, but dedicated Pending listings need propertyStatus=pending.
+    console.log(`Pending ZIP queries (${ZIPS.length})…`);
+    for (const zip of ZIPS) {
+      const rows = await collectQuery(page, token, `Pending ZIP ${zip}`, {
+        searchString: zip,
+        propertyStatus: "pending",
+      });
+      const hint = zipHint(zip);
+      for (const d of rows) {
+        const ln = String(d.LN || "").toUpperCase();
+        if (!ln) continue;
+        if (String(d.zip) !== zip) continue;
+        // Pending wins over a stale active copy of the same MLS
+        byLn.set(ln, { d, hint: hint || d.city });
       }
       await sleep(350);
     }

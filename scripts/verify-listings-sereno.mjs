@@ -1,6 +1,7 @@
 /**
  * Re-verify every listing against Sereno CRMLS pages by MLS#.
- * Updates live ask price; drops sold / pending / gone.
+ * Updates live ask price; keeps pending (under contract) with status marked;
+ * drops sold / gone.
  *
  *   npm run ingest:verify
  */
@@ -38,22 +39,23 @@ function parseSereno(html, finalUrl) {
     return { status: "gone" };
   }
 
-  // Status chips: "Active / MLS", "Pending / MLS", "Sold / MLS", "Price Change / MLS", "New / MLS"
+  // Status chips: "Active / MLS", "Pending / MLS", "Sold / MLS", "Contingent / MLS", …
   const chip =
     html.match(
-      /\b(Active|Pending|Sold|Closed|Withdrawn|Canceled|Cancelled|Coming Soon|Price Change|New)\s*\/\s*MLS/i,
+      /\b(Active|Pending|Contingent|Sold|Closed|Withdrawn|Canceled|Cancelled|Coming Soon|Price Change|New|Open House)\s*\/\s*MLS/i,
     )?.[1] || "";
   let status = "unknown";
   const chipL = chip.toLowerCase();
   if (chipL === "sold" || chipL === "closed") status = "sold";
-  else if (chipL === "pending") status = "pending";
+  else if (chipL === "pending" || chipL === "contingent") status = "pending";
   else if (chipL === "withdrawn" || chipL === "canceled" || chipL === "cancelled")
     status = "sold";
   else if (
     chipL === "active" ||
     chipL === "new" ||
     chipL === "price change" ||
-    chipL === "coming soon"
+    chipL === "coming soon" ||
+    chipL === "open house"
   ) {
     status = "active";
   }
@@ -169,11 +171,7 @@ async function main() {
         await sleep(350);
         continue;
       }
-      if (
-        live.status === "sold" ||
-        live.status === "pending" ||
-        live.status === "gone"
-      ) {
+      if (live.status === "sold" || live.status === "gone") {
         dropped += 1;
         console.log(
           `[${i + 1}/${listings.length}] DROP ${live.status} ${l.address} (was $${(l.price / 1e6).toFixed(2)}M)`,
@@ -181,8 +179,15 @@ async function main() {
         await sleep(250);
         continue;
       }
-      // OutOfStock / closed chips already handled; also drop unknown w/ no price
-      if (live.status !== "active") {
+
+      const next = { ...l };
+      if (live.status === "pending") {
+        next.status = "pending";
+        console.log(
+          `[${i + 1}/${listings.length}] PENDING ${l.address} (was $${(l.price / 1e6).toFixed(2)}M)`,
+        );
+      } else if (live.status !== "active") {
+        // OutOfStock / closed chips already handled; also drop unknown w/ no price
         if (!live.price || live.status === "unknown") {
           dropped += 1;
           console.log(
@@ -191,9 +196,11 @@ async function main() {
           await sleep(250);
           continue;
         }
+        next.status = "active";
+      } else {
+        next.status = "active";
       }
 
-      const next = { ...l };
       if (live.price >= 400_000 && live.price !== l.price) {
         // Ignore wild swings that look like parse errors (>70% drop or >3x)
         const ratio = live.price / l.price;
@@ -208,7 +215,7 @@ async function main() {
           );
           next.price = live.price;
         }
-      } else {
+      } else if (live.status === "active") {
         console.log(
           `[${i + 1}/${listings.length}] OK $${(l.price / 1e6).toFixed(2)}M ${l.address}`,
         );
@@ -221,7 +228,6 @@ async function main() {
         next.sourceUrl = live.sourceUrl;
         next.source = "manual";
       }
-      next.status = "active";
       next.updatedAt = new Date().toISOString();
       kept.push(next);
     } catch (err) {
