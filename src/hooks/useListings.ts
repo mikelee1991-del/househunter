@@ -16,7 +16,9 @@ export function useListings() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/data/listings.json?t=${Date.now()}`);
+        const res = await fetch(
+          `${import.meta.env.BASE_URL}data/listings.json?t=${Date.now()}`,
+        );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as ListingsFile;
         // Active + pending (under contract); drop sold / incomplete scrapes

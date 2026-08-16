@@ -10,6 +10,12 @@ Interactive map for finding ocean-view, generally west-facing homes in the Los A
 - Listings merged from multiple sources, refreshed **daily** via GitHub Actions
 - Automatic **match flagging** against your criteria
 
+## Live site
+
+**https://mikelee1991-del.github.io/househunter/**
+
+Deploys from `main` via GitHub Actions (Pages). Local `npm run dev` still uses `/`.
+
 ## Quick start
 
 ```bash
