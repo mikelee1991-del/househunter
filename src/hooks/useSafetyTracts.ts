@@ -10,7 +10,7 @@ export function useSafetyTracts(enabled: boolean) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/data/safety-tracts.json");
+        const res = await fetch(`${import.meta.env.BASE_URL}data/safety-tracts.json`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as SafetyTractsFile;
         if (!cancelled) {
