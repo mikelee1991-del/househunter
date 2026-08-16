@@ -694,6 +694,13 @@ p {
   font-size: 0.88rem;
 }
 
+.pick-pending {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: #8a6418;
+}
+
 .liv-meters {
   margin: 0.45rem 0 0.55rem;
   display: grid;
@@ -815,6 +822,12 @@ p {
   outline-color: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
+.home-marker.is-pending .home-pin-dot {
+  background: #a67c2d;
+  outline-color: color-mix(in srgb, #a67c2d 55%, transparent);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
 .home-marker.is-selected .home-pin-dot {
   width: 20px;
   height: 20px;
@@ -832,10 +845,29 @@ p {
   color: #fff;
   border-radius: 3px;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.home-pin-pending {
+  font-family: "Source Sans 3", system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.12rem 0.28rem;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
 }
 
 .home-marker.is-match .home-pin-label {
   background: var(--accent);
+}
+
+.home-marker.is-pending .home-pin-label {
+  background: #a67c2d;
 }
 
 .home-marker.is-selected .home-pin-label {
@@ -851,6 +883,13 @@ p {
   font-family: Fraunces, Georgia, serif;
   font-size: 1.15rem;
   margin: 0 0 0.2rem;
+}
+
+.home-popup-pending {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #8a6418;
 }
 
 .home-popup-addr {
@@ -986,6 +1025,7 @@ p {
 }
 
 .flag-badge,
+.status-badge,
 .price-badge {
   position: absolute;
   top: 0.5rem;
@@ -999,6 +1039,22 @@ p {
   left: 0.5rem;
   background: var(--accent);
   color: white;
+}
+
+.status-badge.pending-badge {
+  left: 0.5rem;
+  top: 0.5rem;
+  background: #a67c2d;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.listing-card.is-pending .flag-badge {
+  top: 2.15rem;
+}
+
+.listing-card.is-pending {
+  opacity: 0.92;
 }
 
 .price-badge {

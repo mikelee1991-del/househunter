@@ -24,7 +24,9 @@ export function scoreListing(
   const approx = driveMinutesToAnchors(listing.lat, listing.lng, anchors);
   const drives = { ...approx, ...roadMinutes } as Record<AnchorId, number>;
 
-  if (listing.status !== "active") {
+  if (listing.status === "pending") {
+    failReasons.push("Pending sale / under contract");
+  } else if (listing.status !== "active") {
     failReasons.push(`Not actively for sale (${listing.status})`);
   }
 
@@ -231,6 +233,7 @@ export function scoreListing(
   }
 
   // Core gates — home should not appear in the UI pool at all
+  // (pending stays visible with a UI indicator, but never counts as a match)
   const coreFails = failReasons.filter(
     (r) =>
       r.startsWith("Not actively for sale") ||
@@ -247,6 +250,7 @@ export function scoreListing(
   const hardFails = failReasons.filter(
     (r) =>
       coreFails.includes(r) ||
+      r.startsWith("Pending sale") ||
       ((criteria.minOceanViewshed ?? 0) > 0 &&
         r.startsWith("Ocean viewshed")) ||
       r.startsWith("Airplane noise") ||
