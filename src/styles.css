@@ -982,14 +982,6 @@ p {
 .home-marker.has-metric .home-pin-dot {
   outline-color: rgba(28, 26, 23, 0.25);
 }
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 0.12rem 0.28rem;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.22);
-  color: #fff;
-}
 
 .home-marker.is-match .home-pin-label {
   background: var(--accent);
