@@ -1,10 +1,10 @@
 export function SuitabilityLegend() {
   return (
     <div className="suitability-legend">
-      <strong>Best areas</strong>
+      <strong>Best areas (address + context)</strong>
       <p>
-        Blended map of drive times, LAX noise, safety, walk band, and ocean /
-        sunset openness — not individual home prices or beds
+        Bright dots = each listing’s overall fit at that address (~40 m). Faint
+        wash = continuous drive / noise / livability context between homes.
       </p>
       <div
         className="suitability-legend-ramp"
