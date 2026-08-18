@@ -29,6 +29,7 @@ import {
 } from "../lib/mapMetrics";
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { ParameterScoreChart } from "./ParameterScoreChart";
+import { NoiseHeatLayer } from "./NoiseHeatLayer";
 import { OceanViewshedHeatLayer } from "./OceanViewshedHeatLayer";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
 
@@ -236,6 +237,8 @@ export function MapView({
         listings={allListings}
       />
 
+      <NoiseHeatLayer enabled={showNoise} />
+
       {metricLayer === "air" &&
         airTracts?.tracts.map((t) => {
           const fill = airQualityColor(t.airQualityScore);
@@ -311,12 +314,14 @@ export function MapView({
             positions={poly.coordinates.map(([lng, lat]) => [lat, lng])}
             pathOptions={{
               color: NOISE_COLORS[poly.cnel].slice(0, 7),
-              fillColor: NOISE_COLORS[poly.cnel],
-              fillOpacity: 0.22,
-              weight: 1,
+              fill: false,
+              fillOpacity: 0,
+              weight: 1.5,
+              opacity: 0.7,
+              dashArray: "3 5",
             }}
           >
-            <Tooltip sticky>LAX ~{poly.cnel} CNEL</Tooltip>
+            <Tooltip sticky>LAX ~{poly.cnel} CNEL contour</Tooltip>
           </Polygon>
         ))}
 

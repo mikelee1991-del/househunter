@@ -142,7 +142,7 @@ export function buildParameterBars(
     threshold: quietThreshold(criteria.maxNoiseCnel),
     kind: "min",
     ok: listing.noiseCnel <= criteria.maxNoiseCnel,
-    detail: `Max ${criteria.maxNoiseCnel} CNEL`,
+    detail: `Max ${criteria.maxNoiseCnel} CNEL (airport + highway)`,
   });
 
   const budgetFill =

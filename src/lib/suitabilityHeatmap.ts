@@ -1,4 +1,4 @@
-import { estimateNoiseCnel } from "../data/laxNoise";
+import { estimateNoiseCnel } from "../data/ambientNoise";
 import { NEIGHBORHOOD_LIVABILITY } from "../data/neighborhoodLivability";
 import { SOUTH_BAY_COASTLINE } from "../data/southBayCoastline";
 import type { SafetyTractsFile } from "../data/safetyTiers";

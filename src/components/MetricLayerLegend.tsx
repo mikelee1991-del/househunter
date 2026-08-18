@@ -82,20 +82,31 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "noise") {
     return (
       <div className="safety-legend">
-        <strong>LAX noise contours</strong>
-        <p>Approximate CNEL bands — quieter is better for matches</p>
+        <strong>Ambient noise</strong>
+        <p>
+          Louder of LAX CNEL + highway corridors (I-405, I-105, I-110, SR-91,
+          I-10, PCH). Lines = road centerlines.
+        </p>
         <ul>
           <li>
-            <i style={{ background: "#f0c929" }} />
-            ~65 CNEL
+            <i style={{ background: "#c0392b" }} />
+            Loud
+            <span>≥70</span>
           </li>
           <li>
             <i style={{ background: "#e07a3d" }} />
-            ~70 CNEL
+            Elevated
+            <span>60–70</span>
           </li>
           <li>
-            <i style={{ background: "#c0392b" }} />
-            ~75 CNEL
+            <i style={{ background: "#f0c929" }} />
+            Moderate
+            <span>50–60</span>
+          </li>
+          <li>
+            <i style={{ background: "#c8b88a" }} />
+            Quieter
+            <span>&lt;50</span>
           </li>
         </ul>
       </div>

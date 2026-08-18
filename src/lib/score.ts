@@ -203,7 +203,7 @@ export function scoreListing(
     matchReasons.push(`Noise ~${listing.noiseCnel} CNEL`);
   } else {
     failReasons.push(
-      `Airplane noise ~${listing.noiseCnel} CNEL > max ${criteria.maxNoiseCnel}`,
+      `Noise ~${listing.noiseCnel} CNEL > max ${criteria.maxNoiseCnel} (airport/highway)`,
     );
   }
 
@@ -329,6 +329,7 @@ export function scoreListing(
       r.startsWith("Pending sale") ||
       ((criteria.minOceanViewshed ?? 0) > 0 &&
         r.startsWith("Ocean viewshed")) ||
+      (r.startsWith("Noise ~") && r.includes("> max")) ||
       r.startsWith("Airplane noise") ||
       r.startsWith("Neighborhood filter") ||
       r.startsWith("Safety ") ||

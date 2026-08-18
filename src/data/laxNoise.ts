@@ -3,6 +3,9 @@
  * Shapes follow the known east–west runway / overflight pattern:
  * elongated lobes over Westchester, Inglewood, El Segundo, and offshore.
  * Source inspiration: LAWA quarterly CNEL maps (PDF only publicly).
+ *
+ * For combined airport + highway noise, use `estimateNoiseCnel` from
+ * `./ambientNoise`.
  */
 export type NoiseBand = 65 | 70 | 75;
 
@@ -83,15 +86,14 @@ function pointInRing(lng: number, lat: number, ring: [number, number][]): boolea
   return inside;
 }
 
-/** Highest CNEL band containing the point, or 0 if outside modeled contours. */
-export function estimateNoiseCnel(lat: number, lng: number): number {
+/** Airport-only CNEL band containing the point (soft falloff outside 65). */
+export function estimateAirportNoiseCnel(lat: number, lng: number): number {
   let max = 0;
   for (const poly of LAX_NOISE_POLYGONS) {
     if (pointInRing(lng, lat, poly.coordinates)) {
       max = Math.max(max, poly.cnel);
     }
   }
-  // Soft falloff just outside 65 contour for scoring nuance
   if (max === 0) {
     const dLat = lat - 33.942;
     const dLng = (lng + 118.4085) * Math.cos((lat * Math.PI) / 180);
@@ -101,4 +103,12 @@ export function estimateNoiseCnel(lat: number, lng: number): number {
     return 40;
   }
   return max;
+}
+
+/**
+ * @deprecated Airport-only. Prefer `ambientNoise.estimateNoiseCnel` which
+ * includes highway corridors. Kept so older imports keep compiling.
+ */
+export function estimateNoiseCnel(lat: number, lng: number): number {
+  return estimateAirportNoiseCnel(lat, lng);
 }

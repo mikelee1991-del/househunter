@@ -114,7 +114,7 @@ export interface Listing {
   status: "active" | "pending" | "sold";
   listedAt: string;
   updatedAt: string;
-  /** Approximate CNEL from LAX contour model */
+  /** Approximate combined CNEL (LAX + highway corridors) */
   noiseCnel: number;
   /**
    * Precomputed analysis (viewshed, walk, drives, default score).
