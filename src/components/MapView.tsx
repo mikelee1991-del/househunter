@@ -10,15 +10,9 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { LAX_NOISE_POLYGONS } from "../data/laxNoise";
-import {
-  NEIGHBORHOOD_LIVABILITY,
-  walkColor,
-} from "../data/neighborhoodLivability";
 import type { SafetyTractsFile } from "../data/safetyTiers";
-import { tierColor } from "../data/safetyTiers";
 import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { IsochroneMap } from "../hooks/useIsochrones";
-import { airQualityBand, airQualityColor } from "../lib/airQuality";
 import { exteriorRings } from "../lib/isochrone";
 import { isPendingSaleStatus, pendingSaleLabel } from "../lib/listingStatus";
 import { isPropertyListingUrl } from "../lib/listingUrl";
@@ -29,8 +23,7 @@ import {
 } from "../lib/mapMetrics";
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { ParameterScoreChart } from "./ParameterScoreChart";
-import { NoiseHeatLayer } from "./NoiseHeatLayer";
-import { OceanViewshedHeatLayer } from "./OceanViewshedHeatLayer";
+import { AddressMetricHeatLayer } from "./AddressMetricHeatLayer";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
 
 const NOISE_COLORS: Record<number, string> = {
@@ -140,22 +133,6 @@ function homeIcon(
   });
 }
 
-function geoRingsToLatLng(
-  geometry: SafetyTractsFile["features"][number]["geometry"],
-): [number, number][][] {
-  if (geometry.type === "Polygon") {
-    return [
-      (geometry.coordinates[0] as [number, number][]).map(([lng, lat]) => [
-        lat,
-        lng,
-      ]),
-    ];
-  }
-  return (geometry.coordinates as [number, number][][][]).map((poly) =>
-    poly[0].map(([lng, lat]) => [lat, lng] as [number, number]),
-  );
-}
-
 interface Props {
   anchors: Anchor[];
   isochrones: IsochroneMap;
@@ -196,7 +173,8 @@ export function MapView({
   const selected = listings.find((l) => l.id === selectedId);
   const showSuitability = metricLayer === "suitability";
   const showNoise = metricLayer === "noise";
-  const showOceanOverlay = metricLayer === "ocean";
+  const showAddressHeat =
+    metricLayer !== "off" && metricLayer !== "suitability";
 
   return (
     <MapContainer
@@ -222,6 +200,7 @@ export function MapView({
       <FitToHomes listings={listings} />
       <FocusSelected listing={selected} />
 
+      {/* Best areas: continuous location model (background) + address halos */}
       <SuitabilityHeatLayer
         enabled={showSuitability}
         criteria={criteria}
@@ -231,81 +210,18 @@ export function MapView({
         safetyTracts={safetyTracts}
         airTracts={airTracts}
       />
-
-      <OceanViewshedHeatLayer
-        enabled={showOceanOverlay}
+      <AddressMetricHeatLayer
+        enabled={showSuitability}
+        metric="suitability"
         listings={allListings}
       />
 
-      <NoiseHeatLayer enabled={showNoise} />
-
-      {metricLayer === "air" &&
-        airTracts?.tracts.map((t) => {
-          const fill = airQualityColor(t.airQualityScore);
-          return t.rings.map((positions, idx) => (
-            <Polygon
-              key={`air-${t.tract}-${idx}`}
-              positions={positions}
-              pathOptions={{
-                color: "#5c574c",
-                fillColor: fill,
-                fillOpacity: 0.28,
-                weight: 0.5,
-                opacity: 0.35,
-              }}
-            >
-              <Tooltip sticky>
-                Air {t.airQualityScore ?? "—"} ·{" "}
-                {airQualityBand(t.airQualityScore).toLowerCase()}
-                {t.pm25 != null ? ` · PM2.5 ${t.pm25}` : ""}
-              </Tooltip>
-            </Polygon>
-          ));
-        })}
-
-      {metricLayer === "safety" &&
-        safetyTracts?.features.map((f) => {
-          const fill = tierColor(f.properties.tier);
-          const rings = geoRingsToLatLng(f.geometry);
-          return rings.map((positions, idx) => (
-            <Polygon
-              key={`tract-${f.properties.geoid}-${idx}`}
-              positions={positions}
-              pathOptions={{
-                color: "#5c574c",
-                fillColor: fill,
-                fillOpacity: 0.22,
-                weight: 0.5,
-                opacity: 0.35,
-              }}
-            >
-              <Tooltip sticky>
-                {f.properties.place} · {f.properties.tierLabel}
-              </Tooltip>
-            </Polygon>
-          ));
-        })}
-
-      {metricLayer === "walk" &&
-        NEIGHBORHOOD_LIVABILITY.map((n) => {
-          const fill = walkColor(n.walkFallback);
-          return (
-            <Polygon
-              key={`walk-${n.name}`}
-              positions={n.polygon}
-              pathOptions={{
-                color: fill,
-                fillColor: fill,
-                fillOpacity: 0.18,
-                weight: 1,
-              }}
-            >
-              <Tooltip sticky>
-                {n.name} · walk ~{n.walkFallback}
-              </Tooltip>
-            </Polygon>
-          );
-        })}
+      {/* Per-metric: lot-scale halos only (no tract wash) */}
+      <AddressMetricHeatLayer
+        enabled={showAddressHeat}
+        metric={metricLayer}
+        listings={allListings}
+      />
 
       {showNoise &&
         LAX_NOISE_POLYGONS.map((poly) => (
@@ -317,7 +233,7 @@ export function MapView({
               fill: false,
               fillOpacity: 0,
               weight: 1.5,
-              opacity: 0.7,
+              opacity: 0.55,
               dashArray: "3 5",
             }}
           >

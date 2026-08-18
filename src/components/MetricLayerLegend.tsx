@@ -14,14 +14,17 @@ const SCORE_BANDS = [
   { label: "Poor", min: 0 },
 ];
 
+const ADDRESS_NOTE =
+  "One ~40 m halo per listing address — not a tract or neighborhood wash.";
+
 export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "off" || layer === "suitability") return null;
 
   if (layer === "safety") {
     return (
       <div className="safety-legend">
-        <strong>Safety by census tract</strong>
-        <p>Discrete 5-class relative index — not address-level crime</p>
+        <strong>Safety (per address)</strong>
+        <p>{ADDRESS_NOTE} Score from CA OpenJustice / tract index at the home.</p>
         <ul>
           {SAFETY_TIERS.map((t) => (
             <li key={t.tier}>
@@ -38,8 +41,11 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "air") {
     return (
       <div className="safety-legend">
-        <strong>Air / pollution burden</strong>
-        <p>CalEnviroScreen — higher = cleaner relative air</p>
+        <strong>Air / pollution (per address)</strong>
+        <p>
+          {ADDRESS_NOTE} CalEnviroScreen burden at the listing’s tract — higher
+          = cleaner.
+        </p>
         <ul>
           {SCORE_BANDS.map((b) => (
             <li key={b.label}>
@@ -56,8 +62,8 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "walk") {
     return (
       <div className="safety-legend">
-        <strong>Walkability</strong>
-        <p>Neighborhood EPA walk index estimate (1–20)</p>
+        <strong>Walkability (per address)</strong>
+        <p>{ADDRESS_NOTE} EPA Walkability at the home (1–20 → 0–100).</p>
         <ul>
           <li>
             <i style={{ background: "#0b6e4f" }} />
@@ -82,10 +88,10 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "noise") {
     return (
       <div className="safety-legend">
-        <strong>Ambient noise</strong>
+        <strong>Ambient noise (per address)</strong>
         <p>
-          Louder of LAX CNEL + highway corridors (I-405, I-105, I-110, SR-91,
-          I-10, PCH). Lines = road centerlines.
+          {ADDRESS_NOTE} Louder of LAX CNEL + highway corridors. Lines =
+          road centerlines.
         </p>
         <ul>
           <li>
@@ -118,8 +124,8 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
       <div className="safety-legend">
         <strong>Ocean / sunset (per address)</strong>
         <p>
-          DEM line-of-sight at each listing (~18 rays). Overlay shows only
-          within ~110 m of a scored home — not a neighborhood wash.
+          {ADDRESS_NOTE} DEM line-of-sight score baked on each listing (~18
+          rays).
         </p>
         <ul>
           <li>
@@ -145,8 +151,8 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "condition") {
     return (
       <div className="safety-legend">
-        <strong>Condition on homes</strong>
-        <p>Pin color = listing-text condition score</p>
+        <strong>Condition (per address)</strong>
+        <p>{ADDRESS_NOTE} Listing-text condition score at that home.</p>
         <ul>
           {SCORE_BANDS.map((b) => (
             <li key={b.label}>
