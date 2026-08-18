@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { CriteriaPanel } from "./components/CriteriaPanel";
 import { ListingCard } from "./components/ListingCard";
 import { LivabilityScatter } from "./components/LivabilityScatter";
+import { MapView } from "./components/MapView";
 import {
-  MapView,
-  type LivabilityOverlay,
-} from "./components/MapView";
-import { SafetyLegend } from "./components/SafetyLegend";
+  MetricLayerLegend,
+  MetricLayerTabs,
+} from "./components/MetricLayerLegend";
+import { ParameterScoreChart } from "./components/ParameterScoreChart";
 import { SuitabilityLegend } from "./components/SuitabilityLegend";
 import { DEFAULT_ANCHORS, DEFAULT_CRITERIA } from "./data/anchors";
+import { useAirQualityTracts } from "./hooks/useAirQualityTracts";
 import { useIsochrones } from "./hooks/useIsochrones";
 import { useListings } from "./hooks/useListings";
 import { useLivability } from "./hooks/useLivability";
@@ -19,6 +21,7 @@ import {
   setStoredOrsKey,
 } from "./lib/isochrone";
 import { isPropertyListingUrl } from "./lib/listingUrl";
+import type { MapMetricLayer } from "./lib/mapMetrics";
 import { scoreListing } from "./lib/score";
 import {
   buildPrefs,
@@ -35,15 +38,13 @@ export default function App() {
     DEFAULT_ANCHORS.map((a) => ({ ...a })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showNoise, setShowNoise] = useState(false);
   const [showIsochrones, setShowIsochrones] = useState(true);
-  /** Location suitability heatmap — on by default so “where to look” is obvious */
-  const [showSuitability, setShowSuitability] = useState(true);
   /** Default on: show every home that fits the selected criteria */
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(true);
-  /** Overlays off by default so home pins stay the primary map signal */
-  const [livabilityOverlay, setLivabilityOverlay] =
-    useState<LivabilityOverlay>("off");
+  const [satellite, setSatellite] = useState(false);
+  /** One metric at a time — default Best areas so “where to look” is obvious */
+  const [metricLayer, setMetricLayer] =
+    useState<MapMetricLayer>("suitability");
   const [orsKey, setOrsKey] = useState(() => getStoredOrsKey());
 
   useEffect(() => {
@@ -76,7 +77,10 @@ export default function App() {
     progress: viewshedProgress,
   } = useOceanViewshed(listings, true);
   const { data: safetyTracts } = useSafetyTracts(
-    livabilityOverlay === "safety" || showSuitability,
+    metricLayer === "safety" || metricLayer === "suitability",
+  );
+  const { data: airTracts } = useAirQualityTracts(
+    metricLayer === "air" || metricLayer === "suitability",
   );
   const {
     isochrones,
@@ -200,31 +204,10 @@ export default function App() {
             <label>
               <input
                 type="checkbox"
-                checked={showNoise}
-                onChange={(e) => setShowNoise(e.target.checked)}
+                checked={satellite}
+                onChange={(e) => setSatellite(e.target.checked)}
               />
-              LAX noise
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={showSuitability}
-                onChange={(e) => setShowSuitability(e.target.checked)}
-              />
-              Best areas
-            </label>
-            <label className="toolbar-select">
-              Livability
-              <select
-                value={livabilityOverlay}
-                onChange={(e) =>
-                  setLivabilityOverlay(e.target.value as LivabilityOverlay)
-                }
-              >
-                <option value="off">Off</option>
-                <option value="safety">Safety (tracts)</option>
-                <option value="walk">Walk map</option>
-              </select>
+              Satellite
             </label>
             <label>
               <input
@@ -234,6 +217,8 @@ export default function App() {
               />
               Matches only
             </label>
+            <span className="toolbar-label">Metric</span>
+            <MetricLayerTabs value={metricLayer} onChange={setMetricLayer} />
           </div>
           {isoMode === "loading" && (
             <div className="map-overlay">
@@ -243,8 +228,8 @@ export default function App() {
               </p>
             </div>
           )}
-          {livabilityOverlay === "safety" && <SafetyLegend />}
-          {showSuitability && <SuitabilityLegend />}
+          <MetricLayerLegend layer={metricLayer} />
+          {metricLayer === "suitability" && <SuitabilityLegend />}
           <MapView
             anchors={anchors}
             isochrones={isochrones}
@@ -253,11 +238,11 @@ export default function App() {
             criteria={criteria}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            showNoise={showNoise}
             showIsochrones={showIsochrones && isoMode !== "loading"}
-            showSuitability={showSuitability}
-            livabilityOverlay={livabilityOverlay}
+            metricLayer={metricLayer}
+            satellite={satellite}
             safetyTracts={safetyTracts}
+            airTracts={airTracts}
           />
         </div>
 
@@ -271,63 +256,75 @@ export default function App() {
             />
             {selected && (
               <div className="pick liv-pick">
-                <p className="eyebrow">
-                  {selected.status === "pending"
-                    ? "Pending sale — under contract"
-                    : selected.flagged
-                      ? "Best match — go see it"
-                      : "Selected home"}
-                </p>
-                <h2>
-                  {selected.address} · $
-                  {(selected.price / 1e6).toFixed(2)}M
-                </h2>
-                {selected.status === "pending" && (
-                  <p className="pick-pending">
-                    This home is in the process of being sold
+                <div
+                  className="pick-photo"
+                  style={
+                    selected.photos[0]
+                      ? { backgroundImage: `url(${selected.photos[0]})` }
+                      : undefined
+                  }
+                  role={selected.photos[0] ? "img" : undefined}
+                  aria-label={
+                    selected.photos[0]
+                      ? `Photo of ${selected.address}`
+                      : undefined
+                  }
+                >
+                  {selected.status === "pending" && (
+                    <span className="status-badge pending-badge">
+                      Pending
+                    </span>
+                  )}
+                  {selected.flagged && (
+                    <span className="flag-badge">Match</span>
+                  )}
+                  <span className="price-badge">
+                    ${(selected.price / 1_000_000).toFixed(2)}M
+                  </span>
+                </div>
+                <div className="pick-body">
+                  <p className="eyebrow">
+                    {selected.status === "pending"
+                      ? "Pending sale — under contract"
+                      : selected.flagged
+                        ? "Best match — go see it"
+                        : "Selected home"}
                   </p>
-                )}
-                <p className="pick-meta">
-                  {selected.neighborhood} · {selected.beds} bd ·{" "}
-                  {selected.baths} ba · {selected.sqft.toLocaleString()} sqft
-                </p>
-                {isPropertyListingUrl(selected.sourceUrl) ? (
-                  <a
-                    className="listing-cta listing-cta-lg"
-                    href={selected.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View listing
-                  </a>
-                ) : (
-                  <p className="listing-cta listing-cta-lg listing-cta-disabled">
-                    No live listing link
+                  <h2>{selected.address}</h2>
+                  {selected.status === "pending" && (
+                    <p className="pick-pending">
+                      This home is in the process of being sold
+                    </p>
+                  )}
+                  <p className="pick-meta">
+                    {selected.neighborhood} · {selected.beds} bd ·{" "}
+                    {selected.baths} ba · {selected.sqft.toLocaleString()} sqft
                   </p>
-                )}
-                {selected.oceanViewshed && (
-                  <p
-                    className="pick-meta subtle"
-                    title="How open the ocean/sunset direction is from this lot. Sight-lines toward the Pacific; hills and nearby buildings can block. Not about house facing."
-                  >
-                    Ocean / sunset openness{" "}
-                    {selected.oceanViewshed.score100}/100
-                    {selected.oceanViewshed.score100 >=
-                    criteria.minOceanViewshed
-                      ? ` · meets your min ${criteria.minOceanViewshed}`
-                      : ` · below your min ${criteria.minOceanViewshed}`}
-                    {" · "}
-                    {selected.oceanViewshed.clearRays} of{" "}
-                    {selected.oceanViewshed.testedRays} sight-lines clear · ~
-                    {selected.oceanViewshed.nearestCoastKm.toFixed(1)} km to
-                    coast
+                  {isPropertyListingUrl(selected.sourceUrl) ? (
+                    <a
+                      className="listing-cta listing-cta-lg"
+                      href={selected.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View listing
+                    </a>
+                  ) : (
+                    <p className="listing-cta listing-cta-lg listing-cta-disabled">
+                      No live listing link
+                    </p>
+                  )}
+                  <ParameterScoreChart
+                    listing={selected}
+                    criteria={criteria}
+                    anchors={anchors}
+                  />
+                  <p className="pick-meta subtle">
+                    {livProgress ?? ""}
+                    {livProgress && viewshedProgress ? " · " : ""}
+                    {viewshedProgress ?? ""}
                   </p>
-                )}
-                <p className="pick-meta subtle">
-                  {livProgress ?? ""}
-                  {livProgress && viewshedProgress ? " · " : ""}
-                  {viewshedProgress ?? ""}
-                </p>
+                </div>
               </div>
             )}
           </div>

@@ -7,7 +7,25 @@ import {
   type IsochroneMap,
 } from "./isochrone";
 import type { ListingLivability } from "../hooks/useLivability";
+import { airQualityBand } from "./airQuality";
 import type { OceanViewshedResult } from "./oceanViewshed";
+
+function resolveAirQuality(listing: Listing): {
+  airQualityScore: number | null;
+  band: string | null;
+} {
+  const score =
+    listing.analysis?.airQualityScore ??
+    listing.analysis?.airQuality?.airQualityScore ??
+    null;
+  if (score == null || !Number.isFinite(score)) {
+    return { airQualityScore: null, band: null };
+  }
+  return {
+    airQualityScore: score,
+    band: listing.analysis?.airQuality?.band ?? airQualityBand(score),
+  };
+}
 
 function resolveCondition(listing: Listing): ConditionAssessment {
   if (listing.analysis?.condition) {
@@ -36,6 +54,7 @@ export function scoreListing(
   const approx = driveMinutesToAnchors(listing.lat, listing.lng, anchors);
   const drives = { ...approx, ...roadMinutes } as Record<AnchorId, number>;
   const condition = resolveCondition(listing);
+  const air = resolveAirQuality(listing);
 
   if (listing.status === "pending") {
     failReasons.push("Pending sale / under contract");
@@ -221,6 +240,28 @@ export function scoreListing(
     }
   }
 
+  // Air / pollution burden (CalEnviroScreen)
+  const minAir = criteria.minAirQualityScore ?? 0;
+  if (minAir > 0) {
+    if (air.airQualityScore == null) {
+      failReasons.push("Air quality unknown for this tract");
+    } else if (air.airQualityScore >= minAir) {
+      score += 8;
+      matchReasons.push(
+        `Air quality ${air.airQualityScore} · ${air.band ?? "OK"} (≥ ${minAir})`,
+      );
+    } else {
+      failReasons.push(
+        `Air quality ${air.airQualityScore} < min ${minAir} (${air.band ?? "high burden"})`,
+      );
+    }
+  } else if (air.airQualityScore != null && air.airQualityScore >= 50) {
+    score += 4;
+    matchReasons.push(
+      `Lower pollution burden (${air.airQualityScore} · ${air.band})`,
+    );
+  }
+
   // Isochrones / drive times — prefer polygon membership when available
   let insideAll = true;
   const havePolys =
@@ -292,6 +333,8 @@ export function scoreListing(
       r.startsWith("Neighborhood filter") ||
       r.startsWith("Safety ") ||
       r.startsWith("Walk ") ||
+      ((criteria.minAirQualityScore ?? 0) > 0 &&
+        (r.startsWith("Air quality ") || r.startsWith("Air quality unknown"))) ||
       (criteria.requireWithinAllIsochrones &&
         (r.includes("limit") || r.startsWith("Outside"))),
   );
@@ -311,6 +354,8 @@ export function scoreListing(
     safetyLabel: livability?.safetyLabel,
     walkIndex: livability?.walkIndex,
     walkSource: livability?.walkSource,
+    airQualityScore: air.airQualityScore,
+    airQualityBand: air.band,
     condition,
     oceanViewshed: viewshed
       ? {

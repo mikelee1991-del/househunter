@@ -2,6 +2,7 @@ import { estimateNoiseCnel } from "../data/laxNoise";
 import { NEIGHBORHOOD_LIVABILITY } from "../data/neighborhoodLivability";
 import { SOUTH_BAY_COASTLINE } from "../data/southBayCoastline";
 import type { SafetyTractsFile } from "../data/safetyTiers";
+import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { Anchor, AnchorId, Criteria, Listing } from "../types";
 import { estimateDriveMinutes, haversineKm } from "./geo";
 import {
@@ -36,6 +37,7 @@ export interface HeatmapCellBase {
   noiseCnel: number;
   safetyScore: number;
   walkIndex: number;
+  airQualityScore: number;
   oceanProxy: number;
   driveMins: Record<AnchorId, number>;
 }
@@ -103,6 +105,11 @@ type TractRing = {
   rings: [number, number][][];
 };
 
+type AirRing = {
+  airQualityScore: number;
+  rings: [number, number][][];
+};
+
 function tractRings(tracts: SafetyTractsFile): TractRing[] {
   return tracts.features.map((f) => {
     const g = f.geometry;
@@ -112,6 +119,18 @@ function tractRings(tracts: SafetyTractsFile): TractRing[] {
         : (g.coordinates as [number, number][][][]).map((poly) => poly[0]);
     return { safetyScore: f.properties.safetyScore, rings };
   });
+}
+
+function airRings(air: AirQualityTractsFile): AirRing[] {
+  return air.tracts
+    .filter((t) => t.airQualityScore != null)
+    .map((t) => ({
+      airQualityScore: t.airQualityScore as number,
+      // rings are [lat, lng][]; pointInRing expects [lng, lat]
+      rings: t.rings.map((ring) =>
+        ring.map(([lat, lng]) => [lng, lat] as [number, number]),
+      ),
+    }));
 }
 
 function livabilityAt(
@@ -146,6 +165,17 @@ function livabilityAt(
   return { safetyScore: 62, walkIndex: 10 };
 }
 
+function airAt(lat: number, lng: number, tracts: AirRing[] | null): number {
+  if (tracts) {
+    for (const t of tracts) {
+      if (t.rings.some((ring) => pointInRing(lng, lat, ring))) {
+        return t.airQualityScore;
+      }
+    }
+  }
+  return 35;
+}
+
 export function oceanSamplesFromListings(
   listings: Listing[],
 ): HeatmapOceanSample[] {
@@ -170,12 +200,14 @@ export function buildHeatmapBase(
   listings: Listing[],
   tracts: SafetyTractsFile | null,
   anchors: Anchor[],
+  airTracts: AirQualityTractsFile | null = null,
   cols = DEFAULT_COLS,
   rows = DEFAULT_ROWS,
 ): HeatmapCellBase[] {
   const { south, west, north, east } = SUITABILITY_BOUNDS;
   const samples = oceanSamplesFromListings(listings);
   const tractIndex = tracts ? tractRings(tracts) : null;
+  const airIndex = airTracts ? airRings(airTracts) : null;
   const cells: HeatmapCellBase[] = new Array(cols * rows);
 
   for (let row = 0; row < rows; row++) {
@@ -193,6 +225,7 @@ export function buildHeatmapBase(
         noiseCnel: estimateNoiseCnel(lat, lng),
         safetyScore: liv.safetyScore,
         walkIndex: liv.walkIndex,
+        airQualityScore: airAt(lat, lng, airIndex),
         oceanProxy: oceanProxyAt(lat, lng, samples),
         driveMins,
       };
@@ -317,29 +350,54 @@ export function scoreHeatmapCell(
     ocean = 40 + cell.oceanProxy * 0.35;
   }
 
+  const minAir = criteria.minAirQualityScore ?? 0;
+  let air: number;
+  if (minAir > 0) {
+    if (cell.airQualityScore >= minAir) {
+      air =
+        60 +
+        clamp(
+          (cell.airQualityScore - minAir) / Math.max(100 - minAir, 1),
+          0,
+          1,
+        ) *
+          40;
+    } else {
+      air = clamp(
+        (cell.airQualityScore / Math.max(minAir, 1)) * 45,
+        0,
+        45,
+      );
+    }
+  } else {
+    air = 40 + cell.airQualityScore * 0.4;
+  }
+
   // Weights mirror location-ish parts of scoreListing
-  const oceanW = minView > 0 ? 0.28 : 0.12;
-  const driveW = 0.28;
-  const noiseW = 0.14;
-  const safetyW = 0.16;
-  const walkW = 0.14;
-  const rest = driveW + noiseW + safetyW + walkW + oceanW;
+  const oceanW = minView > 0 ? 0.26 : 0.11;
+  const driveW = 0.26;
+  const noiseW = 0.13;
+  const safetyW = 0.14;
+  const walkW = 0.13;
+  const airW = minAir > 0 ? 0.14 : 0.08;
+  const rest = driveW + noiseW + safetyW + walkW + oceanW + airW;
   const score =
     (drive * driveW +
       noise * noiseW +
       safety * safetyW +
       walk * walkW +
-      ocean * oceanW) /
+      ocean * oceanW +
+      air * airW) /
     rest;
 
   return clamp(score, 0, 100);
 }
 
-/** Sequential colormap: faint cool → amber → brand green (best). */
+/** Sequential colormap: cool → amber → brand green (best). */
 export function suitabilityRgba(score: number): [number, number, number, number] {
   const t = clamp(score / 100, 0, 1);
-  // Alpha ramps so weak areas barely tint the basemap
-  const a = Math.round(clamp((t - 0.28) / 0.72, 0, 1) * 195);
+  // Stronger alpha so “best areas” read clearly over the basemap
+  const a = Math.round(clamp((t - 0.18) / 0.82, 0, 1) * 235);
 
   let r: number;
   let g: number;

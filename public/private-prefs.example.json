@@ -17,13 +17,15 @@
     "minConditionScore": 45,
     "maxNoiseCnel": 75,
     "minSafetyScore": 70,
+    "minAirQualityScore": 15,
     "walkMin": 10.5,
     "walkMax": 20,
     "driveMinutes": {
       "spacex": 25,
       "lax": 30,
       "kentwood": 35,
-      "torrance": 40
+      "torrance": 40,
+      "harbor": 20
     },
     "requireWithinAllIsochrones": true,
     "neighborhoods": []
@@ -64,6 +66,15 @@
       "lat": 33.82443,
       "lng": -118.30702,
       "color": "#6b4c9a"
+    },
+    {
+      "id": "harbor",
+      "label": "Redondo Harbor",
+      "address": "659 N Harbor Dr, Redondo Beach, CA 90277",
+      "description": "659 N Harbor Drive",
+      "lat": 33.84841,
+      "lng": -118.39523,
+      "color": "#c0392b"
     }
   ]
 }

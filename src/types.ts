@@ -1,4 +1,5 @@
-export type AnchorId = "spacex" | "lax" | "kentwood" | "torrance";
+/** Stable id for a drive-time place (built-ins + user-added). */
+export type AnchorId = string;
 
 export interface Anchor {
   id: AnchorId;
@@ -52,10 +53,17 @@ export interface Criteria {
   maxNoiseCnel: number;
   /** Minimum neighborhood safety score 0–100 (higher = safer / lower crime) */
   minSafetyScore: number;
+  /**
+   * Minimum CalEnviroScreen air-quality score 0–100
+   * (100 − pollution burden percentile; higher = cleaner).
+   * 0 = off.
+   */
+  minAirQualityScore: number;
   /** EPA National Walkability Index band (1–20) */
   walkMin: number;
   walkMax: number;
-  driveMinutes: Record<AnchorId, number>;
+  /** Max drive minutes per place id (built-in or user-added) */
+  driveMinutes: Record<string, number>;
   requireWithinAllIsochrones: boolean;
   neighborhoods: string[];
 }
@@ -123,7 +131,7 @@ export interface ListingAnalysis {
   safetyLabel: string;
   walkIndex: number;
   walkSource: "epa" | "neighborhood-fallback";
-  driveMinutes: Record<AnchorId, number>;
+  driveMinutes: Record<string, number>;
   oceanViewshed: {
     hasOceanView: boolean;
     clearRayFraction: number;
@@ -150,6 +158,20 @@ export interface ListingAnalysis {
     summary: string;
     signals: string[];
   };
+  /** CalEnviroScreen air / pollution burden (higher airQualityScore = cleaner) */
+  airQualityScore?: number | null;
+  airQuality?: {
+    tract: string;
+    airQualityScore: number;
+    pollutionBurdenPctile: number | null;
+    pm25: number | null;
+    pm25Pctile: number | null;
+    diesel: number | null;
+    dieselPctile: number | null;
+    ozone: number | null;
+    ozonePctile: number | null;
+    band: string;
+  } | null;
   /** Score against DEFAULT_CRITERIA at compute time */
   defaultScore: {
     score: number;
@@ -167,11 +189,13 @@ export interface ScoredListing extends Listing {
   /** Failed budget / beds / baths / sqft / status / SFR / garage / etc. */
   coreRejected: boolean;
   flagged: boolean;
-  driveMinutesEstimate: Record<AnchorId, number>;
+  driveMinutesEstimate: Record<string, number>;
   safetyScore?: number;
   safetyLabel?: string;
   walkIndex?: number;
   walkSource?: "epa" | "neighborhood-fallback";
+  airQualityScore?: number | null;
+  airQualityBand?: string | null;
   /** GIS DEM + OSM building line-of-sight to Pacific */
   oceanViewshed?: {
     hasOceanView: boolean;

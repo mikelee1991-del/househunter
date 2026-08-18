@@ -16,10 +16,12 @@
     "ingest:sereno": "node scripts/scrape-sereno-areas.mjs",
     "ingest:status": "node scripts/sync-sereno-status.mjs",
     "ingest:condition": "tsx scripts/enrich-listing-condition.mts",
+    "ingest:air": "node scripts/enrich-listing-air.mjs",
     "ingest:redfin": "node scripts/scrape-redfin-market.mjs",
     "ingest:all": "node scripts/ingest-all.mjs",
     "ingest:precompute": "tsx scripts/precompute-listing-scores.ts",
     "build:safety": "node scripts/build-safety-tracts.mjs",
+    "build:air": "node scripts/build-air-quality-tracts.mjs",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {

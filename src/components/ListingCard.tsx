@@ -75,6 +75,8 @@ export function ListingCard({ listing, criteria, selected, onSelect }: Props) {
             minSafety={criteria.minSafetyScore}
             walkMin={criteria.walkMin}
             walkMax={criteria.walkMax}
+            airQualityScore={listing.airQualityScore}
+            minAirQualityScore={criteria.minAirQualityScore}
             oceanViewshedScore={listing.oceanViewshed?.score100}
             oceanViewshedHasView={
               listing.oceanViewshed != null

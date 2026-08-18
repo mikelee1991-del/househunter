@@ -1,6 +1,7 @@
 import { useDeferredValue, useMemo } from "react";
 import { ImageOverlay } from "react-leaflet";
 import type { SafetyTractsFile } from "../data/safetyTiers";
+import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { IsochroneMap } from "../hooks/useIsochrones";
 import {
   buildHeatmapBase,
@@ -15,11 +16,12 @@ interface Props {
   isochrones: IsochroneMap;
   listings: Listing[];
   safetyTracts: SafetyTractsFile | null;
+  airTracts: AirQualityTractsFile | null;
 }
 
 /**
  * High-res canvas heatmap of blended location suitability (drives, noise,
- * safety, walk, ocean openness). Home-specific filters are not applied.
+ * safety, walk, ocean openness, air). Home-specific filters are not applied.
  */
 export function SuitabilityHeatLayer({
   enabled,
@@ -28,6 +30,7 @@ export function SuitabilityHeatLayer({
   isochrones,
   listings,
   safetyTracts,
+  airTracts,
 }: Props) {
   const deferredCriteria = useDeferredValue(criteria);
   const deferredIso = useDeferredValue(isochrones);
@@ -35,8 +38,13 @@ export function SuitabilityHeatLayer({
 
   const base = useMemo(() => {
     if (!enabled) return null;
-    return buildHeatmapBase(listings, safetyTracts, deferredAnchors);
-  }, [enabled, listings, safetyTracts, deferredAnchors]);
+    return buildHeatmapBase(
+      listings,
+      safetyTracts,
+      deferredAnchors,
+      airTracts,
+    );
+  }, [enabled, listings, safetyTracts, airTracts, deferredAnchors]);
 
   const raster = useMemo(() => {
     if (!enabled || !base) return null;
@@ -57,7 +65,7 @@ export function SuitabilityHeatLayer({
     <ImageOverlay
       url={raster.url}
       bounds={raster.bounds}
-      opacity={0.72}
+      opacity={0.92}
       zIndex={350}
       interactive={false}
     />
