@@ -18,7 +18,7 @@ export const MAP_METRIC_OPTIONS: { id: MapMetricLayer; label: string }[] = [
   { id: "walk", label: "Walkability" },
   { id: "ocean", label: "Ocean / sunset" },
   { id: "condition", label: "Condition" },
-  { id: "noise", label: "Quiet (LAX)" },
+  { id: "noise", label: "Quiet (noise)" },
   { id: "suitability", label: "Best areas" },
 ];
 

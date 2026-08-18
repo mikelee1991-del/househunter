@@ -432,7 +432,7 @@ export function CriteriaPanel({
           </label>
         </div>
         <label className="field field-inline">
-          <span>Max LAX noise — {criteria.maxNoiseCnel} CNEL</span>
+          <span>Max noise — {criteria.maxNoiseCnel} CNEL</span>
           <input
             type="range"
             min={40}
@@ -442,6 +442,10 @@ export function CriteriaPanel({
             onChange={(e) => set("maxNoiseCnel", Number(e.target.value))}
           />
         </label>
+        <p className="field-caption">
+          Combined airport (LAX) + highway screening — quieter homes score
+          better.
+        </p>
       </section>
 
       <section className="panel-section">
