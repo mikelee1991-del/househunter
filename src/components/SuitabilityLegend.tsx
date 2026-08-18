@@ -3,8 +3,8 @@ export function SuitabilityLegend() {
     <div className="suitability-legend">
       <strong>Best areas (address + context)</strong>
       <p>
-        Bright dots = each listing’s overall fit at that address (~40 m). Faint
-        wash = continuous drive / noise / livability context between homes.
+        Bright halos = each listing’s overall fit (address-local; ~40 m when
+        zoomed in). Faint wash = drive / noise / livability context between homes.
       </p>
       <div
         className="suitability-legend-ramp"

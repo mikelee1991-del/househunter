@@ -149,7 +149,7 @@ export function paintAddressHalos(
 /** Shared green←amber←red scale for 0–100 “higher is better” metrics. */
 export function scoreRgba(score: number): [number, number, number, number] {
   const t = Math.max(0, Math.min(1, score / 100));
-  const a = Math.round(200 + t * 40);
+  const a = Math.round(210 + t * 45);
   let r: number;
   let g: number;
   let b: number;

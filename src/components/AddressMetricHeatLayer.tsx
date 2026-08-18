@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { ImageOverlay, Polyline } from "react-leaflet";
+import { useMemo, useState } from "react";
+import { ImageOverlay, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { HIGHWAY_CORRIDORS } from "../data/ambientNoise";
 import {
   noiseCnelRgba,
@@ -11,8 +11,19 @@ import type { MapMetricLayer } from "../lib/mapMetrics";
 import { oceanViewshedRgba } from "../lib/suitabilityHeatmap";
 import type { Listing } from "../types";
 
-/** ~40 m parcel-scale halo — address-local, not neighborhood */
-const RADIUS_KM = 0.04;
+/** Parcel floor when zoomed in */
+const MIN_RADIUS_KM = 0.04;
+/** Cap when zoomed out — still address-centered, not tract-scale */
+const MAX_RADIUS_KM = 0.15;
+/** Aim for ~this many screen pixels of halo diameter/2 */
+const TARGET_PX = 16;
+
+function radiusKmForZoom(zoom: number, lat: number): number {
+  const mpp =
+    (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
+  const targetKm = (mpp * TARGET_PX) / 1000;
+  return Math.min(MAX_RADIUS_KM, Math.max(MIN_RADIUS_KM, targetKm));
+}
 
 function samplesForMetric(
   listings: Listing[],
@@ -46,9 +57,12 @@ function samplesForMetric(
       case "condition":
         score = l.analysis?.condition?.score100 ?? null;
         break;
-      case "suitability":
-        score = l.analysis?.defaultScore?.score ?? null;
+      case "suitability": {
+        const raw = l.analysis?.defaultScore?.score;
+        // defaultScore can exceed 100 — clamp for colormap
+        score = raw == null ? null : Math.max(0, Math.min(100, raw));
         break;
+      }
       default:
         break;
     }
@@ -71,21 +85,28 @@ interface Props {
 }
 
 /**
- * Address-local heatmap: one soft ~40 m halo per listing using that
- * address’s score. No tract / neighborhood choropleth wash.
+ * Address-local heatmap: one soft halo per listing. Radius tracks zoom so
+ * discs stay readable city-wide but tighten to ~40 m when zoomed in.
  */
 export function AddressMetricHeatLayer({ enabled, metric, listings }: Props) {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useMapEvents({
+    zoomend: () => setZoom(map.getZoom()),
+  });
+
+  const radiusKm = radiusKmForZoom(zoom, map.getCenter().lat);
+
   const raster = useMemo(() => {
     if (!enabled || metric === "off") return null;
     const samples = samplesForMetric(listings, metric);
     if (!samples.length) return null;
     return paintAddressHalos(samples, rgbaFor(metric), {
-      radiusKm: RADIUS_KM,
-      // ~25–30 m pixels across South Bay so 40 m discs stay round
+      radiusKm,
       cols: 720,
       rows: 540,
     });
-  }, [enabled, metric, listings]);
+  }, [enabled, metric, listings, radiusKm]);
 
   if (!enabled || !raster?.url) return null;
 
