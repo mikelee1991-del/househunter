@@ -604,8 +604,38 @@ p {
 }
 
 .liv-pick {
-  max-height: min(70vh, 640px);
+  max-height: min(70vh, 720px);
   overflow: auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pick-photo {
+  position: relative;
+  flex: 0 0 auto;
+  height: 180px;
+  background: var(--surface-2);
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px 8px 0 0;
+}
+
+.pick-photo .flag-badge {
+  left: 0.5rem;
+}
+
+.pick-photo .pending-badge + .flag-badge,
+.pick-photo .pending-badge ~ .flag-badge {
+  top: 2.15rem;
+}
+
+.pick-body {
+  padding: 0.75rem 0.85rem 0.9rem;
+}
+
+.pick-body .listing-cta-lg {
+  margin: 0.45rem 0 0.15rem;
 }
 
 .scatter-head h2 {

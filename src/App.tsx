@@ -280,68 +280,75 @@ export default function App() {
             />
             {selected && (
               <div className="pick liv-pick">
-                <p className="eyebrow">
-                  {selected.status === "pending"
-                    ? "Pending sale — under contract"
-                    : selected.flagged
-                      ? "Best match — go see it"
-                      : "Selected home"}
-                </p>
-                <h2>
-                  {selected.address} · $
-                  {(selected.price / 1e6).toFixed(2)}M
-                </h2>
-                {selected.status === "pending" && (
-                  <p className="pick-pending">
-                    This home is in the process of being sold
+                <div
+                  className="pick-photo"
+                  style={
+                    selected.photos[0]
+                      ? { backgroundImage: `url(${selected.photos[0]})` }
+                      : undefined
+                  }
+                  role={selected.photos[0] ? "img" : undefined}
+                  aria-label={
+                    selected.photos[0]
+                      ? `Photo of ${selected.address}`
+                      : undefined
+                  }
+                >
+                  {selected.status === "pending" && (
+                    <span className="status-badge pending-badge">
+                      Pending
+                    </span>
+                  )}
+                  {selected.flagged && (
+                    <span className="flag-badge">Match</span>
+                  )}
+                  <span className="price-badge">
+                    ${(selected.price / 1_000_000).toFixed(2)}M
+                  </span>
+                </div>
+                <div className="pick-body">
+                  <p className="eyebrow">
+                    {selected.status === "pending"
+                      ? "Pending sale — under contract"
+                      : selected.flagged
+                        ? "Best match — go see it"
+                        : "Selected home"}
                   </p>
-                )}
-                <p className="pick-meta">
-                  {selected.neighborhood} · {selected.beds} bd ·{" "}
-                  {selected.baths} ba · {selected.sqft.toLocaleString()} sqft
-                </p>
-                {isPropertyListingUrl(selected.sourceUrl) ? (
-                  <a
-                    className="listing-cta listing-cta-lg"
-                    href={selected.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View listing
-                  </a>
-                ) : (
-                  <p className="listing-cta listing-cta-lg listing-cta-disabled">
-                    No live listing link
+                  <h2>{selected.address}</h2>
+                  {selected.status === "pending" && (
+                    <p className="pick-pending">
+                      This home is in the process of being sold
+                    </p>
+                  )}
+                  <p className="pick-meta">
+                    {selected.neighborhood} · {selected.beds} bd ·{" "}
+                    {selected.baths} ba · {selected.sqft.toLocaleString()} sqft
                   </p>
-                )}
-                {selected.oceanViewshed && (
-                  <p
-                    className="pick-meta subtle"
-                    title="How open the ocean/sunset direction is from this lot. Sight-lines toward the Pacific; hills and nearby buildings can block. Not about house facing."
-                  >
-                    Ocean / sunset openness{" "}
-                    {selected.oceanViewshed.score100}/100
-                    {selected.oceanViewshed.score100 >=
-                    criteria.minOceanViewshed
-                      ? ` · meets your min ${criteria.minOceanViewshed}`
-                      : ` · below your min ${criteria.minOceanViewshed}`}
-                    {" · "}
-                    {selected.oceanViewshed.clearRays} of{" "}
-                    {selected.oceanViewshed.testedRays} sight-lines clear · ~
-                    {selected.oceanViewshed.nearestCoastKm.toFixed(1)} km to
-                    coast
+                  {isPropertyListingUrl(selected.sourceUrl) ? (
+                    <a
+                      className="listing-cta listing-cta-lg"
+                      href={selected.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View listing
+                    </a>
+                  ) : (
+                    <p className="listing-cta listing-cta-lg listing-cta-disabled">
+                      No live listing link
+                    </p>
+                  )}
+                  <ParameterScoreChart
+                    listing={selected}
+                    criteria={criteria}
+                    anchors={anchors}
+                  />
+                  <p className="pick-meta subtle">
+                    {livProgress ?? ""}
+                    {livProgress && viewshedProgress ? " · " : ""}
+                    {viewshedProgress ?? ""}
                   </p>
-                )}
-                <ParameterScoreChart
-                  listing={selected}
-                  criteria={criteria}
-                  anchors={anchors}
-                />
-                <p className="pick-meta subtle">
-                  {livProgress ?? ""}
-                  {livProgress && viewshedProgress ? " · " : ""}
-                  {viewshedProgress ?? ""}
-                </p>
+                </div>
               </div>
             )}
           </div>
