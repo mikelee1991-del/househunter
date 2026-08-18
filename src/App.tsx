@@ -7,6 +7,7 @@ import {
   MapView,
   type LivabilityOverlay,
 } from "./components/MapView";
+import { ParameterScoreChart } from "./components/ParameterScoreChart";
 import { SafetyLegend } from "./components/SafetyLegend";
 import { SuitabilityLegend } from "./components/SuitabilityLegend";
 import { DEFAULT_ANCHORS, DEFAULT_CRITERIA } from "./data/anchors";
@@ -331,6 +332,11 @@ export default function App() {
                     coast
                   </p>
                 )}
+                <ParameterScoreChart
+                  listing={selected}
+                  criteria={criteria}
+                  anchors={anchors}
+                />
                 <p className="pick-meta subtle">
                   {livProgress ?? ""}
                   {livProgress && viewshedProgress ? " · " : ""}

@@ -23,6 +23,7 @@ import { exteriorRings } from "../lib/isochrone";
 import { isPendingSaleStatus, pendingSaleLabel } from "../lib/listingStatus";
 import { isPropertyListingUrl } from "../lib/listingUrl";
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
+import { ParameterScoreChart } from "./ParameterScoreChart";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
 
 export type LivabilityOverlay = "off" | "safety" | "walk" | "air";
@@ -316,7 +317,7 @@ export function MapView({
             }
             eventHandlers={{ click: () => onSelect(l.id) }}
           >
-            <Popup className="home-popup" maxWidth={280}>
+            <Popup className="home-popup" maxWidth={320} minWidth={260}>
               <div className="home-popup-body">
                 <p className="home-popup-price">
                   ${(l.price / 1e6).toFixed(2)}M
@@ -331,6 +332,12 @@ export function MapView({
                   {l.neighborhood} · {l.beds} bd · {l.baths} ba ·{" "}
                   {l.sqft.toLocaleString()} sqft
                 </p>
+                <ParameterScoreChart
+                  listing={l}
+                  criteria={criteria}
+                  anchors={anchors}
+                  compact
+                />
                 {isPropertyListingUrl(l.sourceUrl) ? (
                   <a
                     className="listing-cta"

@@ -603,6 +603,11 @@ p {
   padding: 0.75rem 0.85rem;
 }
 
+.liv-pick {
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+
 .scatter-head h2 {
   font-size: 1.05rem;
 }
@@ -885,7 +890,8 @@ p {
 }
 
 .home-popup-body {
-  min-width: 200px;
+  min-width: 240px;
+  max-width: 300px;
 }
 
 .home-popup-price {
@@ -1149,6 +1155,162 @@ p {
   font-size: 0.75rem;
   opacity: 0.85;
   margin-top: 0.35rem;
+}
+
+/* Selected-listing parameter score bars */
+.param-chart {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--stroke);
+}
+
+.param-chart-head h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.15rem;
+}
+
+.param-chart-head p {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 0.55rem;
+}
+
+.param-chart-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.param-bar-row {
+  animation: rise 0.35s ease both;
+}
+
+.param-bar-row:nth-child(2) { animation-delay: 0.03s; }
+.param-bar-row:nth-child(3) { animation-delay: 0.06s; }
+.param-bar-row:nth-child(4) { animation-delay: 0.09s; }
+.param-bar-row:nth-child(5) { animation-delay: 0.12s; }
+.param-bar-row:nth-child(6) { animation-delay: 0.15s; }
+.param-bar-row:nth-child(7) { animation-delay: 0.18s; }
+.param-bar-row:nth-child(8) { animation-delay: 0.21s; }
+.param-bar-row:nth-child(9) { animation-delay: 0.24s; }
+.param-bar-row:nth-child(10) { animation-delay: 0.27s; }
+
+.param-bar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.15rem;
+}
+
+.param-bar-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.param-bar-value {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.param-bar-row.ok .param-bar-value {
+  color: var(--accent);
+}
+
+.param-bar-row.bad .param-bar-value {
+  color: var(--warn);
+}
+
+.param-bar-track {
+  position: relative;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 2px;
+  overflow: visible;
+}
+
+.param-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--muted) 45%, var(--surface-2));
+  transition: width 0.4s ease;
+  min-width: 2px;
+}
+
+.param-bar-fill.ok {
+  background: var(--accent);
+}
+
+.param-bar-fill.bad {
+  background: var(--warn);
+}
+
+.param-bar-fill.neutral {
+  background: color-mix(in srgb, var(--ink) 35%, var(--surface-2));
+}
+
+.param-bar-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.param-bar-threshold {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+  opacity: 0.55;
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.param-bar-detail {
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-top: 0.12rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.param-chart.compact {
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.param-chart.compact .param-chart-head h3 {
+  font-size: 0.8rem;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.param-chart.compact .param-chart-bars {
+  gap: 0.32rem;
+}
+
+.param-chart.compact .param-bar-track {
+  height: 6px;
+}
+
+.param-chart.compact .param-bar-label,
+.param-chart.compact .param-bar-value {
+  font-size: 0.68rem;
+}
+
+.param-chart.compact .param-bar-row {
+  animation: none;
 }
 
 @keyframes rise {
