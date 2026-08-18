@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "savedAt": "2026-08-12T00:00:00.000Z",
+  "criteria": {
+    "budgetMax": 3500000,
+    "minBeds": 3,
+    "minBaths": 2,
+    "minSqft": 1600,
+    "minOceanViewshed": 0,
+    "requireOceanView": false,
+    "requireWestFacing": false,
+    "requireOutdoorSpace": true,
+    "requireSingleFamily": true,
+    "minGarageSpaces": 2,
+    "preferGarageSpaces": 3,
+    "maxNoiseCnel": 75,
+    "minSafetyScore": 70,
+    "walkMin": 10.5,
+    "walkMax": 20,
+    "driveMinutes": {
+      "spacex": 25,
+      "lax": 30,
+      "kentwood": 35,
+      "torrance": 40
+    },
+    "requireWithinAllIsochrones": true,
+    "neighborhoods": []
+  },
+  "anchors": [
+    {
+      "id": "spacex",
+      "label": "Work",
+      "address": "Your work address",
+      "description": "Work",
+      "lat": 33.92055,
+      "lng": -118.32698,
+      "color": "#0b6e4f"
+    },
+    {
+      "id": "lax",
+      "label": "LAX",
+      "address": "1 World Way, Los Angeles, CA 90045",
+      "description": "LAX",
+      "lat": 33.9416,
+      "lng": -118.4085,
+      "color": "#1d4e89"
+    },
+    {
+      "id": "kentwood",
+      "label": "Friends A",
+      "address": "Your private address",
+      "description": "Friends",
+      "lat": 33.98081,
+      "lng": -118.40075,
+      "color": "#b85c38"
+    },
+    {
+      "id": "torrance",
+      "label": "Friends B",
+      "address": "Your private address",
+      "description": "Friends",
+      "lat": 33.82443,
+      "lng": -118.30702,
+      "color": "#6b4c9a"
+    }
+  ]
+}

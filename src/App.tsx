@@ -20,9 +20,16 @@ import {
 } from "./lib/isochrone";
 import { isPropertyListingUrl } from "./lib/listingUrl";
 import { scoreListing } from "./lib/score";
+import {
+  buildPrefs,
+  clearStoredPrefs,
+  resolveInitialPrefs,
+  writeStoredPrefs,
+} from "./lib/userPrefs";
 import type { Anchor, Criteria } from "./types";
 
 export default function App() {
+  const [prefsReady, setPrefsReady] = useState(false);
   const [criteria, setCriteria] = useState<Criteria>(DEFAULT_CRITERIA);
   const [anchors, setAnchors] = useState<Anchor[]>(() =>
     DEFAULT_ANCHORS.map((a) => ({ ...a })),
@@ -38,6 +45,25 @@ export default function App() {
   const [livabilityOverlay, setLivabilityOverlay] =
     useState<LivabilityOverlay>("off");
   const [orsKey, setOrsKey] = useState(() => getStoredOrsKey());
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const prefs = await resolveInitialPrefs();
+      if (cancelled) return;
+      setCriteria(prefs.criteria);
+      setAnchors(prefs.anchors.map((a) => ({ ...a })));
+      setPrefsReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!prefsReady) return;
+    writeStoredPrefs(buildPrefs(criteria, anchors));
+  }, [criteria, anchors, prefsReady]);
 
   const { data, error, loading } = useListings();
   const listings = data?.listings ?? [];
@@ -125,6 +151,21 @@ export default function App() {
     eligible.find((l) => l.id === selectedId) ??
     top;
 
+  function applyImportedPrefs(next: { criteria: Criteria; anchors: Anchor[] }) {
+    setCriteria(next.criteria);
+    setAnchors(next.anchors.map((a) => ({ ...a })));
+  }
+
+  function resetPrefsToPublicDefaults() {
+    clearStoredPrefs();
+    setCriteria({
+      ...DEFAULT_CRITERIA,
+      driveMinutes: { ...DEFAULT_CRITERIA.driveMinutes },
+      neighborhoods: [],
+    });
+    setAnchors(DEFAULT_ANCHORS.map((a) => ({ ...a })));
+  }
+
   return (
     <div className="app">
       <CriteriaPanel
@@ -132,6 +173,8 @@ export default function App() {
         anchors={anchors}
         onCriteriaChange={setCriteria}
         onAnchorsChange={setAnchors}
+        onImportPrefs={applyImportedPrefs}
+        onResetPrefs={resetPrefsToPublicDefaults}
         flaggedCount={flaggedCount}
         totalCount={eligible.length}
         isoMode={isoMode}

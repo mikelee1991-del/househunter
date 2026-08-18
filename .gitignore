@@ -6,3 +6,7 @@ dist
 .env.*
 !.env.example
 .vite
+
+# Personal criteria / anchors — never publish (use private-prefs.example.json)
+public/private-prefs.json
+househunter-prefs.json
