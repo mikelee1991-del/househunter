@@ -66,28 +66,41 @@ function nearestCoastKm(lat: number, lng: number): number {
   return best;
 }
 
-/** Soft ocean/sunset openness without running DEM rays for every cell. */
+/**
+ * Address-local ocean score: exact nearest listing viewshed within maxKm.
+ * Returns null when no listing is close enough (no broad coast wash).
+ */
+export function addressLocalOceanScore(
+  lat: number,
+  lng: number,
+  samples: HeatmapOceanSample[],
+  maxKm = 0.11,
+): number | null {
+  let best: HeatmapOceanSample | null = null;
+  let bestD = Infinity;
+  for (const s of samples) {
+    const d = haversineKm(lat, lng, s.lat, s.lng);
+    if (d < bestD) {
+      bestD = d;
+      best = s;
+    }
+  }
+  if (!best || bestD > maxKm) return null;
+  return best.score;
+}
+
+/** Soft ocean/sunset openness for suitability cells — address-local first. */
 export function oceanProxyAt(
   lat: number,
   lng: number,
   samples: HeatmapOceanSample[],
 ): number {
-  const coastKm = nearestCoastKm(lat, lng);
-  const coastScore = clamp((1 - coastKm / 7.5) * 100, 0, 100);
+  const local = addressLocalOceanScore(lat, lng, samples, 0.18);
+  if (local != null) return local;
 
-  let wSum = 0;
-  let sSum = 0;
-  for (const s of samples) {
-    const d = haversineKm(lat, lng, s.lat, s.lng);
-    if (d > 3.5) continue;
-    const w = 1 / (d * d + 0.06);
-    wSum += w;
-    sSum += w * s.score;
-  }
-  const idw = wSum > 0 ? sSum / wSum : coastScore * 0.45;
-  // Prefer measured GIS viewshed samples when nearby; coast only fills gaps
-  const blend = wSum > 0 ? 0.82 : 0.55;
-  return Math.round(idw * blend + coastScore * (1 - blend));
+  // Far from any measured lot: weak coast-only hint (not a neighborhood smear)
+  const coastKm = nearestCoastKm(lat, lng);
+  return Math.round(clamp((1 - coastKm / 7.5) * 35, 0, 35));
 }
 
 type NbRing = {
@@ -513,14 +526,13 @@ export function oceanViewshedRgba(
 }
 
 /**
- * High-res continuous surface of GIS ocean/sunset openness for the map
- * Ocean metric layer. Uses inverse-distance weighting of baked listing
- * viewshed scores plus coast proximity (same model as suitability cells).
+ * Address-local ocean/sunset overlay: each pixel uses the nearest listing’s
+ * DEM LOS score only when within ~110 m — no neighborhood-wide IDW wash.
  */
 export function paintOceanViewshedHeatmap(
   listings: Listing[],
-  cols = 220,
-  rows = 165,
+  cols = 360,
+  rows = 270,
 ): SuitabilityRaster {
   const { south, west, north, east } = SUITABILITY_BOUNDS;
   const samples = oceanSamplesFromListings(listings);
@@ -544,18 +556,27 @@ export function paintOceanViewshedHeatmap(
   const img = ctx.createImageData(cols, rows);
   let peakSum = 0;
   let peakN = 0;
+  /** ~110 m in degrees at South Bay latitude */
+  const maxKm = 0.11;
 
   for (let row = 0; row < rows; row++) {
     const lat = north - ((row + 0.5) / rows) * (north - south);
     for (let col = 0; col < cols; col++) {
       const lng = west + ((col + 0.5) / cols) * (east - west);
-      const score = oceanProxyAt(lat, lng, samples);
+      const score = addressLocalOceanScore(lat, lng, samples, maxKm);
+      const px = (row * cols + col) * 4;
+      if (score == null) {
+        img.data[px] = 0;
+        img.data[px + 1] = 0;
+        img.data[px + 2] = 0;
+        img.data[px + 3] = 0;
+        continue;
+      }
       if (score >= 35) {
         peakSum += score;
         peakN += 1;
       }
       const [r, g, b, a] = oceanViewshedRgba(score);
-      const px = (row * cols + col) * 4;
       img.data[px] = r;
       img.data[px + 1] = g;
       img.data[px + 2] = b;
