@@ -60,6 +60,8 @@ export const DEFAULT_CRITERIA: Criteria = {
   minConditionScore: 45,
   maxNoiseCnel: 75,
   minSafetyScore: 70,
+  /** Soft floor — filters only the highest pollution-burden tracts */
+  minAirQualityScore: 15,
   walkMin: 10.5,
   walkMax: 20,
   driveMinutes: {

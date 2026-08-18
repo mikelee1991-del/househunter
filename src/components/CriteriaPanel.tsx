@@ -426,6 +426,25 @@ export function CriteriaPanel({
             onChange={(e) => set("minSafetyScore", Number(e.target.value))}
           />
         </label>
+        <label className="field field-inline">
+          <span>
+            Min air quality — {criteria.minAirQualityScore}
+            {criteria.minAirQualityScore === 0 ? " (off)" : ""}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={80}
+            step={1}
+            value={criteria.minAirQualityScore}
+            onChange={(e) => set("minAirQualityScore", Number(e.target.value))}
+          />
+        </label>
+        <p className="field-caption">
+          CalEnviroScreen pollution burden (100 − statewide percentile). Higher
+          = cleaner air relative to CA. Soft default filters only the worst
+          tracts.
+        </p>
         <p className="field-caption">EPA walk band</p>
         <DualRange
           min={1}

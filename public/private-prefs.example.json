@@ -17,6 +17,7 @@
     "minConditionScore": 45,
     "maxNoiseCnel": 75,
     "minSafetyScore": 70,
+    "minAirQualityScore": 15,
     "walkMin": 10.5,
     "walkMax": 20,
     "driveMinutes": {

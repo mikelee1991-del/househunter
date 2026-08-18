@@ -2,6 +2,7 @@ import {
   OCEAN_VIEWSHED_EXPLAIN,
   viewshedBandLabel,
 } from "../lib/oceanViewshed";
+import { airQualityBand } from "../lib/airQuality";
 import { walkBandLabel } from "../data/neighborhoodLivability";
 
 interface Props {
@@ -12,6 +13,8 @@ interface Props {
   minSafety: number;
   walkMin: number;
   walkMax: number;
+  airQualityScore?: number | null;
+  minAirQualityScore?: number;
   /** GIS ocean viewshed 0–100 when computed */
   oceanViewshedScore?: number;
   oceanViewshedHasView?: boolean;
@@ -27,6 +30,8 @@ export function LivabilityMeters({
   minSafety,
   walkMin,
   walkMax,
+  airQualityScore,
+  minAirQualityScore = 0,
   oceanViewshedScore,
   oceanViewshedHasView,
   minOceanViewshed = 35,
@@ -42,6 +47,11 @@ export function LivabilityMeters({
       oceanViewshedScore >= minOceanViewshed);
   const showView = oceanViewshedScore != null;
   const viewBandLeft = Math.min(100, Math.max(0, minOceanViewshed));
+  const showAir = airQualityScore != null && Number.isFinite(airQualityScore);
+  const airOk =
+    minAirQualityScore <= 0 ||
+    (airQualityScore != null && airQualityScore >= minAirQualityScore);
+  const airBandLeft = Math.min(100, Math.max(0, minAirQualityScore));
 
   return (
     <div className={`liv-meters ${compact ? "compact" : ""}`}>
@@ -61,6 +71,35 @@ export function LivabilityMeters({
         </div>
         <p className="liv-cap">Higher = lower relative neighborhood crime</p>
       </div>
+
+      {showAir && (
+        <div className="liv-row">
+          <div className="liv-head">
+            <span>Air quality</span>
+            <strong className={airOk ? "ok" : "bad"}>
+              {airQualityScore} · {airQualityBand(airQualityScore).toLowerCase()}
+            </strong>
+          </div>
+          <div className="liv-track" aria-hidden>
+            {minAirQualityScore > 0 && (
+              <div
+                className="liv-band"
+                style={{ left: `${airBandLeft}%`, right: 0 }}
+              />
+            )}
+            <div
+              className={`liv-thumb ${airOk ? "ok" : "bad"}`}
+              style={{ left: `${Math.min(100, airQualityScore)}%` }}
+            />
+          </div>
+          <p className="liv-cap">
+            CalEnviroScreen (higher = lower pollution burden)
+            {minAirQualityScore > 0
+              ? ` · your min ${minAirQualityScore}`
+              : " · filter off"}
+          </p>
+        </div>
+      )}
 
       <div className="liv-row">
         <div className="liv-head">

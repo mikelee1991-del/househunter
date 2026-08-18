@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { AirQualityLegend } from "./components/AirQualityLegend";
 import { CriteriaPanel } from "./components/CriteriaPanel";
 import { ListingCard } from "./components/ListingCard";
 import { LivabilityScatter } from "./components/LivabilityScatter";
@@ -9,6 +10,7 @@ import {
 import { SafetyLegend } from "./components/SafetyLegend";
 import { SuitabilityLegend } from "./components/SuitabilityLegend";
 import { DEFAULT_ANCHORS, DEFAULT_CRITERIA } from "./data/anchors";
+import { useAirQualityTracts } from "./hooks/useAirQualityTracts";
 import { useIsochrones } from "./hooks/useIsochrones";
 import { useListings } from "./hooks/useListings";
 import { useLivability } from "./hooks/useLivability";
@@ -77,6 +79,9 @@ export default function App() {
   } = useOceanViewshed(listings, true);
   const { data: safetyTracts } = useSafetyTracts(
     livabilityOverlay === "safety" || showSuitability,
+  );
+  const { data: airTracts } = useAirQualityTracts(
+    livabilityOverlay === "air" || showSuitability,
   );
   const {
     isochrones,
@@ -223,6 +228,7 @@ export default function App() {
               >
                 <option value="off">Off</option>
                 <option value="safety">Safety (tracts)</option>
+                <option value="air">Air / pollution</option>
                 <option value="walk">Walk map</option>
               </select>
             </label>
@@ -244,6 +250,7 @@ export default function App() {
             </div>
           )}
           {livabilityOverlay === "safety" && <SafetyLegend />}
+          {livabilityOverlay === "air" && <AirQualityLegend />}
           {showSuitability && <SuitabilityLegend />}
           <MapView
             anchors={anchors}
@@ -258,6 +265,7 @@ export default function App() {
             showSuitability={showSuitability}
             livabilityOverlay={livabilityOverlay}
             safetyTracts={safetyTracts}
+            airTracts={airTracts}
           />
         </div>
 

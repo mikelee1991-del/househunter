@@ -63,6 +63,8 @@ async function main() {
 
   if (process.env.INGEST_PRECOMPUTE === "1") {
     await run("npx", ["tsx", "scripts/precompute-listing-scores.ts"]);
+    await run("npx", ["tsx", "scripts/enrich-listing-condition.mts"]);
+    await run("node", ["scripts/enrich-listing-air.mjs"]);
     await run("npx", ["tsx", "scripts/refresh-default-scores.mts"]);
   }
 

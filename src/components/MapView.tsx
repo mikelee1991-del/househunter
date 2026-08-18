@@ -16,14 +16,16 @@ import {
 } from "../data/neighborhoodLivability";
 import type { SafetyTractsFile } from "../data/safetyTiers";
 import { tierColor } from "../data/safetyTiers";
+import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { IsochroneMap } from "../hooks/useIsochrones";
+import { airQualityBand, airQualityColor } from "../lib/airQuality";
 import { exteriorRings } from "../lib/isochrone";
 import { isPendingSaleStatus, pendingSaleLabel } from "../lib/listingStatus";
 import { isPropertyListingUrl } from "../lib/listingUrl";
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
 
-export type LivabilityOverlay = "off" | "safety" | "walk";
+export type LivabilityOverlay = "off" | "safety" | "walk" | "air";
 
 const NOISE_COLORS: Record<number, string> = {
   65: "#f0c92955",
@@ -123,6 +125,7 @@ interface Props {
   showSuitability: boolean;
   livabilityOverlay: LivabilityOverlay;
   safetyTracts: SafetyTractsFile | null;
+  airTracts: AirQualityTractsFile | null;
 }
 
 export function MapView({
@@ -138,6 +141,7 @@ export function MapView({
   showSuitability,
   livabilityOverlay,
   safetyTracts,
+  airTracts,
 }: Props) {
   const center = useMemo(() => {
     if (listings[0]) return [listings[0].lat, listings[0].lng] as [number, number];
@@ -170,7 +174,32 @@ export function MapView({
         isochrones={isochrones}
         listings={allListings}
         safetyTracts={safetyTracts}
+        airTracts={airTracts}
       />
+
+      {livabilityOverlay === "air" &&
+        airTracts?.tracts.map((t) => {
+          const fill = airQualityColor(t.airQualityScore);
+          return t.rings.map((positions, idx) => (
+            <Polygon
+              key={`air-${t.tract}-${idx}`}
+              positions={positions}
+              pathOptions={{
+                color: "#5c574c",
+                fillColor: fill,
+                fillOpacity: 0.28,
+                weight: 0.5,
+                opacity: 0.35,
+              }}
+            >
+              <Tooltip sticky>
+                Air {t.airQualityScore ?? "—"} ·{" "}
+                {airQualityBand(t.airQualityScore).toLowerCase()}
+                {t.pm25 != null ? ` · PM2.5 ${t.pm25}` : ""}
+              </Tooltip>
+            </Polygon>
+          ));
+        })}
 
       {livabilityOverlay === "safety" &&
         safetyTracts?.features.map((f) => {

@@ -63,6 +63,7 @@ function mergeCriteria(raw: unknown): Criteria {
     minConditionScore: num(raw.minConditionScore, base.minConditionScore),
     maxNoiseCnel: num(raw.maxNoiseCnel, base.maxNoiseCnel),
     minSafetyScore: num(raw.minSafetyScore, base.minSafetyScore),
+    minAirQualityScore: num(raw.minAirQualityScore, base.minAirQualityScore),
     walkMin: num(raw.walkMin, base.walkMin),
     walkMax: num(raw.walkMax, base.walkMax),
     driveMinutes,
