@@ -12,6 +12,10 @@ import { haversineKm } from "./geo";
  *
  * score100 = round(clear rays / tested rays × 100). Higher means a wider
  * clear ocean/sunset wedge. “Has view” when score ≥35 and ≥2 rays clear.
+ *
+ * Density: ~18 sunset-band rays, ~180 m DEM steps, densified offshore
+ * targets, ~900 m building occlusion search — address-specific, not
+ * neighborhood-smoothed.
  */
 
 export type ViewshedConfidence = "high" | "medium" | "low";
@@ -80,7 +84,7 @@ const OVERPASS_URLS = [
 const elevCache = new Map<string, number>();
 
 function elevKey(lat: number, lng: number) {
-  return `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  return `${lat.toFixed(5)},${lng.toFixed(5)}`;
 }
 
 async function sleep(ms: number) {
@@ -125,7 +129,7 @@ function pickOceanTargets(
   lng: number,
   coneCenterDeg = SUNSET_OCEAN_CONE_CENTER_DEG,
   coneHalfAngle = SUNSET_OCEAN_CONE_HALF_DEG,
-  maxTargets = 7,
+  maxTargets = 18,
 ): [number, number][] {
   const offshore = offshoreTargets();
   const scored = offshore
@@ -164,11 +168,11 @@ function samplesAlongRay(
   lng0: number,
   lat1: number,
   lng1: number,
-  stepKm = 0.45,
+  stepKm = 0.18,
 ): SamplePoint[] {
   const total = haversineKm(lat0, lng0, lat1, lng1);
   if (total < 0.05) return [];
-  const n = Math.max(3, Math.min(18, Math.ceil(total / stepKm)));
+  const n = Math.max(6, Math.min(48, Math.ceil(total / stepKm)));
   const out: SamplePoint[] = [];
   for (let i = 1; i <= n; i++) {
     const t = i / n;
@@ -285,7 +289,7 @@ async function fetchBuildingsInWedge(
   lat: number,
   lng: number,
   coneCenterDeg = SUNSET_OCEAN_CONE_CENTER_DEG,
-  radiusM = 700,
+  radiusM = 900,
 ): Promise<OsmBuilding[]> {
   // Bounding box around viewer (Overpass), then filter to sunset/ocean wedge
   const pad = radiusM / 111_320;
@@ -386,7 +390,13 @@ export async function analyzeOceanViewshed(input: {
   const eyeHeightM = input.eyeHeightM ?? 5.5;
   const coastKm = nearestCoastKm(input.lat, input.lng);
 
-  const targets = pickOceanTargets(input.lat, input.lng, facingUsedDeg, SUNSET_OCEAN_CONE_HALF_DEG, 7);
+  const targets = pickOceanTargets(
+    input.lat,
+    input.lng,
+    facingUsedDeg,
+    SUNSET_OCEAN_CONE_HALF_DEG,
+    18,
+  );
   if (!targets.length || coastKm > 12) {
     return {
       hasOceanView: false,
@@ -409,9 +419,9 @@ export async function analyzeOceanViewshed(input: {
     };
   }
 
-  // Gather all elevation sample points
+  // Gather all elevation sample points (dense DEM steps along each ray)
   const raySamples = targets.map(([tlng, tlat]) =>
-    samplesAlongRay(input.lat, input.lng, tlat, tlng, 0.5),
+    samplesAlongRay(input.lat, input.lng, tlat, tlng, 0.18),
   );
   const allPoints: { lat: number; lng: number }[] = [
     { lat: input.lat, lng: input.lng },
@@ -429,7 +439,7 @@ export async function analyzeOceanViewshed(input: {
     input.lat,
     input.lng,
     facingUsedDeg,
-    750,
+    900,
   );
 
   let clearRays = 0;
@@ -484,9 +494,9 @@ export async function analyzeOceanViewshed(input: {
   const hasOceanView = clearRays >= 2 && score100 >= 35;
 
   let confidence: ViewshedConfidence = "low";
-  if (testedRays >= 5 && buildings.length > 0) {
+  if (testedRays >= 12 && buildings.length > 0) {
     confidence = score100 >= 50 ? "high" : "medium";
-  } else if (testedRays >= 3) {
+  } else if (testedRays >= 8) {
     confidence = "medium";
   }
 

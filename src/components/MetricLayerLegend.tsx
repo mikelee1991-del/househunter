@@ -116,10 +116,10 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "ocean") {
     return (
       <div className="safety-legend">
-        <strong>Ocean / sunset openness</strong>
+        <strong>Ocean / sunset (per address)</strong>
         <p>
-          GIS surface from DEM line-of-sight viewsheds (IDW) + coast proximity.
-          Pins show each home’s score.
+          DEM line-of-sight at each listing (~18 rays). Overlay shows only
+          within ~110 m of a scored home — not a neighborhood wash.
         </p>
         <ul>
           <li>
