@@ -9,6 +9,7 @@ Interactive map for finding ocean-view, generally west-facing homes in the Los A
 - Max-budget slider and other settable criteria
 - Listings merged from multiple sources, refreshed **daily** via GitHub Actions
 - Automatic **match flagging** against your criteria
+- **Condition / fixer screen** from listing text (renovation year, TLC, turnkey) — exclude fixer-uppers by default
 
 ## Live site
 

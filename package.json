@@ -15,6 +15,7 @@
     "ingest:verify": "node scripts/verify-listings-sereno.mjs",
     "ingest:sereno": "node scripts/scrape-sereno-areas.mjs",
     "ingest:status": "node scripts/sync-sereno-status.mjs",
+    "ingest:condition": "tsx scripts/enrich-listing-condition.mts",
     "ingest:redfin": "node scripts/scrape-redfin-market.mjs",
     "ingest:all": "node scripts/ingest-all.mjs",
     "ingest:precompute": "tsx scripts/precompute-listing-scores.ts",

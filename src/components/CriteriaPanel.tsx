@@ -348,6 +348,34 @@ export function CriteriaPanel({
           />
           Outdoor space (patio/deck/yard…)
         </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={criteria.excludeFixerUpper}
+            onChange={(e) => set("excludeFixerUpper", e.target.checked)}
+          />
+          Exclude fixer-uppers
+        </label>
+        <label className="field field-inline">
+          <span>
+            Min condition — {criteria.minConditionScore}
+            {criteria.minConditionScore === 0 ? " (off)" : ""}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={80}
+            step={5}
+            value={criteria.minConditionScore}
+            onChange={(e) => set("minConditionScore", Number(e.target.value))}
+          />
+        </label>
+        <p className="hint">
+          Screens listing blurbs for renovation year and fixer language
+          (TLC, “bring your contractor,” sold as-is, turnkey, etc.). Not a
+          home inspection or photo AI — confirm on tour. Default excludes
+          clear fixer-uppers and asks for condition ≥45.
+        </p>
         <div className="grid-2">
           <label className="field">
             <span>Garage min</span>

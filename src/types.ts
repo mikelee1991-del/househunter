@@ -39,6 +39,16 @@ export interface Criteria {
   minGarageSpaces: number;
   /** Nice-to-have garage spaces for bonus scoring (default 3) */
   preferGarageSpaces: number;
+  /**
+   * Drop obvious fixer / TLC / “bring your contractor” homes from the pool.
+   * Uses listing-text condition screening (not a home inspection).
+   */
+  excludeFixerUpper: boolean;
+  /**
+   * Minimum condition score 0–100 from text (+ year built).
+   * 0 = off. ~50 is “not a project”; ~70 prefers updated/turnkey language.
+   */
+  minConditionScore: number;
   maxNoiseCnel: number;
   /** Minimum neighborhood safety score 0–100 (higher = safer / lower crime) */
   minSafetyScore: number;
@@ -126,6 +136,20 @@ export interface ListingAnalysis {
     confidence: "high" | "medium" | "low";
     summary: string;
   };
+  /**
+   * Fixer / renovation screening from listing text (+ yearBuilt).
+   * Optional vision pass can set source to "vision" later.
+   */
+  condition?: {
+    score100: number;
+    isFixer: boolean;
+    renovatedYear: number | null;
+    yearBuilt: number | null;
+    confidence: "high" | "medium" | "low";
+    source: "text" | "text+year" | "vision";
+    summary: string;
+    signals: string[];
+  };
   /** Score against DEFAULT_CRITERIA at compute time */
   defaultScore: {
     score: number;
@@ -161,6 +185,17 @@ export interface ScoredListing extends Listing {
     buildingBlockedRays: number;
     confidence: "high" | "medium" | "low";
     summary: string;
+  };
+  /** Fixer / renovation assessment used in scoring */
+  condition?: {
+    score100: number;
+    isFixer: boolean;
+    renovatedYear: number | null;
+    yearBuilt: number | null;
+    confidence: "high" | "medium" | "low";
+    source: "text" | "text+year" | "vision";
+    summary: string;
+    signals: string[];
   };
 }
 

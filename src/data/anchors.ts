@@ -56,6 +56,8 @@ export const DEFAULT_CRITERIA: Criteria = {
   requireSingleFamily: true,
   minGarageSpaces: 2,
   preferGarageSpaces: 3,
+  excludeFixerUpper: true,
+  minConditionScore: 45,
   maxNoiseCnel: 75,
   minSafetyScore: 70,
   walkMin: 10.5,
