@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ANCHOR_COLOR_PALETTE,
   DEFAULT_ANCHORS,
+  DEFAULT_CRITERIA,
   NEIGHBORHOOD_OPTIONS,
+  newAnchorId,
 } from "../data/anchors";
 import { geocodeAddress } from "../lib/geocode";
 import type { IsochroneMode } from "../lib/isochrone";
@@ -191,6 +194,34 @@ export function CriteriaPanel({
     if (st === "error") return "Address not found — try a fuller street address";
     if (st === "ok") return "Pin updated";
     return null;
+  };
+
+  const addPlace = () => {
+    const id = newAnchorId();
+    const color =
+      ANCHOR_COLOR_PALETTE[anchors.length % ANCHOR_COLOR_PALETTE.length];
+    const next: Anchor = {
+      id,
+      label: `Place ${anchors.length + 1}`,
+      address: "",
+      description: "Custom place",
+      lat: 33.85,
+      lng: -118.39,
+      color,
+    };
+    onAnchorsChange([...anchors, next]);
+    onCriteriaChange({
+      ...criteria,
+      driveMinutes: { ...criteria.driveMinutes, [id]: 20 },
+    });
+  };
+
+  const removePlace = (id: AnchorId) => {
+    if (anchors.length <= 1) return;
+    onAnchorsChange(anchors.filter((a) => a.id !== id));
+    const driveMinutes = { ...criteria.driveMinutes };
+    delete driveMinutes[id];
+    onCriteriaChange({ ...criteria, driveMinutes });
   };
 
   return (
@@ -501,7 +532,7 @@ export function CriteriaPanel({
               set("requireWithinAllIsochrones", e.target.checked)
             }
           />
-          Must sit inside all four isochrones
+          Must sit inside every place isochrone
         </label>
 
         {anchors.map((a) => {
@@ -509,10 +540,26 @@ export function CriteriaPanel({
           return (
             <div key={a.id} className="anchor-edit">
               <div className="anchor-edit-head">
-                <strong style={{ color: a.color }}>{a.label}</strong>
+                <input
+                  className="anchor-label-input"
+                  type="text"
+                  value={a.label}
+                  onChange={(e) => patchAnchor(a.id, { label: e.target.value })}
+                  aria-label="Place name"
+                />
                 <span className="anchor-mins">
-                  {criteria.driveMinutes[a.id]} min
+                  {criteria.driveMinutes[a.id] ?? 20} min
                 </span>
+                {anchors.length > 1 && (
+                  <button
+                    type="button"
+                    className="ghost-btn anchor-remove"
+                    onClick={() => removePlace(a.id)}
+                    aria-label={`Remove ${a.label}`}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
               <label className="field field-tight">
                 <span className="sr-only">Address</span>
@@ -538,7 +585,7 @@ export function CriteriaPanel({
                 min={5}
                 max={60}
                 step={1}
-                value={criteria.driveMinutes[a.id]}
+                value={criteria.driveMinutes[a.id] ?? 20}
                 onChange={(e) => setDrive(a.id, Number(e.target.value))}
                 aria-label={`${a.label} drive minutes`}
               />
@@ -547,12 +594,19 @@ export function CriteriaPanel({
         })}
 
         <div className="row-actions">
+          <button type="button" className="ghost-btn" onClick={addPlace}>
+            Add place
+          </button>
           <button
             type="button"
             className="ghost-btn"
-            onClick={() =>
-              onAnchorsChange(DEFAULT_ANCHORS.map((a) => ({ ...a })))
-            }
+            onClick={() => {
+              onAnchorsChange(DEFAULT_ANCHORS.map((a) => ({ ...a })));
+              onCriteriaChange({
+                ...criteria,
+                driveMinutes: { ...DEFAULT_CRITERIA.driveMinutes },
+              });
+            }}
           >
             Reset places
           </button>

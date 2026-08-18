@@ -4,6 +4,8 @@ import type { Anchor, Criteria } from "../types";
  * Public defaults shipped in the repo / GitHub Pages build.
  * Personal places & criteria belong in localStorage or gitignored
  * `public/private-prefs.json` — never commit those.
+ *
+ * Add more places anytime in the Criteria panel (“Add place”).
  */
 export const DEFAULT_ANCHORS: Anchor[] = [
   {
@@ -42,6 +44,15 @@ export const DEFAULT_ANCHORS: Anchor[] = [
     lng: -118.3406,
     color: "#6b4c9a",
   },
+  {
+    id: "harbor",
+    label: "Redondo Harbor",
+    address: "659 N Harbor Dr, Redondo Beach, CA 90277",
+    description: "659 N Harbor Drive, Redondo Beach",
+    lat: 33.84841,
+    lng: -118.39523,
+    color: "#c0392b",
+  },
 ];
 
 export const DEFAULT_CRITERIA: Criteria = {
@@ -69,6 +80,7 @@ export const DEFAULT_CRITERIA: Criteria = {
     lax: 30,
     kentwood: 35,
     torrance: 40,
+    harbor: 20,
   },
   requireWithinAllIsochrones: true,
   neighborhoods: [],
@@ -98,6 +110,22 @@ export const NEIGHBORHOOD_OPTIONS = [
   "Gardena",
   "Harbor City",
 ];
+
+/** Palette for user-added places (cycles). */
+export const ANCHOR_COLOR_PALETTE = [
+  "#0b6e4f",
+  "#1d4e89",
+  "#b85c38",
+  "#6b4c9a",
+  "#c0392b",
+  "#0e7490",
+  "#a16207",
+  "#be185d",
+];
+
+export function newAnchorId(): string {
+  return `place-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
 
 /** Rough west-facing: 225° (SW) through 315° (NW). */
 export function isWestFacing(degrees?: number): boolean {

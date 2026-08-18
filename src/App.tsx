@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { AirQualityLegend } from "./components/AirQualityLegend";
 import { CriteriaPanel } from "./components/CriteriaPanel";
 import { ListingCard } from "./components/ListingCard";
 import { LivabilityScatter } from "./components/LivabilityScatter";
+import { MapView } from "./components/MapView";
 import {
-  MapView,
-  type LivabilityOverlay,
-} from "./components/MapView";
+  MetricLayerLegend,
+  MetricLayerTabs,
+} from "./components/MetricLayerLegend";
 import { ParameterScoreChart } from "./components/ParameterScoreChart";
-import { SafetyLegend } from "./components/SafetyLegend";
 import { SuitabilityLegend } from "./components/SuitabilityLegend";
 import { DEFAULT_ANCHORS, DEFAULT_CRITERIA } from "./data/anchors";
 import { useAirQualityTracts } from "./hooks/useAirQualityTracts";
@@ -22,6 +21,7 @@ import {
   setStoredOrsKey,
 } from "./lib/isochrone";
 import { isPropertyListingUrl } from "./lib/listingUrl";
+import type { MapMetricLayer } from "./lib/mapMetrics";
 import { scoreListing } from "./lib/score";
 import {
   buildPrefs,
@@ -38,15 +38,12 @@ export default function App() {
     DEFAULT_ANCHORS.map((a) => ({ ...a })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showNoise, setShowNoise] = useState(false);
   const [showIsochrones, setShowIsochrones] = useState(true);
-  /** Location suitability heatmap — on by default so “where to look” is obvious */
-  const [showSuitability, setShowSuitability] = useState(true);
   /** Default on: show every home that fits the selected criteria */
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(true);
-  /** Overlays off by default so home pins stay the primary map signal */
-  const [livabilityOverlay, setLivabilityOverlay] =
-    useState<LivabilityOverlay>("off");
+  /** One metric at a time — default Best areas so “where to look” is obvious */
+  const [metricLayer, setMetricLayer] =
+    useState<MapMetricLayer>("suitability");
   const [orsKey, setOrsKey] = useState(() => getStoredOrsKey());
 
   useEffect(() => {
@@ -79,10 +76,10 @@ export default function App() {
     progress: viewshedProgress,
   } = useOceanViewshed(listings, true);
   const { data: safetyTracts } = useSafetyTracts(
-    livabilityOverlay === "safety" || showSuitability,
+    metricLayer === "safety" || metricLayer === "suitability",
   );
   const { data: airTracts } = useAirQualityTracts(
-    livabilityOverlay === "air" || showSuitability,
+    metricLayer === "air" || metricLayer === "suitability",
   );
   const {
     isochrones,
@@ -206,41 +203,13 @@ export default function App() {
             <label>
               <input
                 type="checkbox"
-                checked={showNoise}
-                onChange={(e) => setShowNoise(e.target.checked)}
-              />
-              LAX noise
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={showSuitability}
-                onChange={(e) => setShowSuitability(e.target.checked)}
-              />
-              Best areas
-            </label>
-            <label className="toolbar-select">
-              Livability
-              <select
-                value={livabilityOverlay}
-                onChange={(e) =>
-                  setLivabilityOverlay(e.target.value as LivabilityOverlay)
-                }
-              >
-                <option value="off">Off</option>
-                <option value="safety">Safety (tracts)</option>
-                <option value="air">Air / pollution</option>
-                <option value="walk">Walk map</option>
-              </select>
-            </label>
-            <label>
-              <input
-                type="checkbox"
                 checked={showFlaggedOnly}
                 onChange={(e) => setShowFlaggedOnly(e.target.checked)}
               />
               Matches only
             </label>
+            <span className="toolbar-label">Metric</span>
+            <MetricLayerTabs value={metricLayer} onChange={setMetricLayer} />
           </div>
           {isoMode === "loading" && (
             <div className="map-overlay">
@@ -250,9 +219,8 @@ export default function App() {
               </p>
             </div>
           )}
-          {livabilityOverlay === "safety" && <SafetyLegend />}
-          {livabilityOverlay === "air" && <AirQualityLegend />}
-          {showSuitability && <SuitabilityLegend />}
+          <MetricLayerLegend layer={metricLayer} />
+          {metricLayer === "suitability" && <SuitabilityLegend />}
           <MapView
             anchors={anchors}
             isochrones={isochrones}
@@ -261,10 +229,8 @@ export default function App() {
             criteria={criteria}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            showNoise={showNoise}
             showIsochrones={showIsochrones && isoMode !== "loading"}
-            showSuitability={showSuitability}
-            livabilityOverlay={livabilityOverlay}
+            metricLayer={metricLayer}
             safetyTracts={safetyTracts}
             airTracts={airTracts}
           />

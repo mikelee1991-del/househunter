@@ -22,11 +22,14 @@ import { airQualityBand, airQualityColor } from "../lib/airQuality";
 import { exteriorRings } from "../lib/isochrone";
 import { isPendingSaleStatus, pendingSaleLabel } from "../lib/listingStatus";
 import { isPropertyListingUrl } from "../lib/listingUrl";
+import {
+  metricScoreColor,
+  quietScoreFromCnel,
+  type MapMetricLayer,
+} from "../lib/mapMetrics";
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { ParameterScoreChart } from "./ParameterScoreChart";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
-
-export type LivabilityOverlay = "off" | "safety" | "walk" | "air";
 
 const NOISE_COLORS: Record<number, string> = {
   65: "#f0c92955",
@@ -69,28 +72,67 @@ function anchorIcon(color: string) {
   });
 }
 
-function homeIcon(listing: ScoredListing, selected: boolean) {
+function listingMetricScore(
+  listing: ScoredListing,
+  layer: MapMetricLayer,
+): number | null {
+  switch (layer) {
+    case "safety":
+      return listing.safetyScore ?? null;
+    case "air":
+      return listing.airQualityScore ?? null;
+    case "walk":
+      return listing.walkIndex != null
+        ? Math.round((listing.walkIndex / 20) * 100)
+        : null;
+    case "ocean":
+      return listing.oceanViewshed?.score100 ?? null;
+    case "condition":
+      return listing.condition?.score100 ?? null;
+    case "noise":
+      return Math.round(quietScoreFromCnel(listing.noiseCnel));
+    default:
+      return null;
+  }
+}
+
+function homeIcon(
+  listing: ScoredListing,
+  selected: boolean,
+  metricLayer: MapMetricLayer,
+) {
   const price = `$${(listing.price / 1e6).toFixed(2)}M`;
   const pending = isPendingSaleStatus(listing.status);
+  const metric = listingMetricScore(listing, metricLayer);
+  const tint =
+    metric != null && metricLayer !== "off" && metricLayer !== "suitability"
+      ? metricScoreColor(metric)
+      : null;
   const state = [
     selected ? "is-selected" : "",
     listing.flagged ? "is-match" : "",
     pending ? "is-pending" : "",
+    tint ? "has-metric" : "",
   ]
     .filter(Boolean)
     .join(" ");
   const pendingMark = pending
     ? `<span class="home-pin-pending" title="Pending sale / under contract">Pending</span>`
     : "";
+  const metricMark =
+    tint && metric != null
+      ? `<span class="home-pin-metric" title="Metric score">${metric}</span>`
+      : "";
+  const dotStyle = tint ? ` style="background:${tint}"` : "";
   return L.divIcon({
     className: `home-marker ${state}`,
     html: `
       <div class="home-pin" title="${listing.address}${pending ? " (pending sale)" : ""}">
-        <span class="home-pin-dot"></span>
-        <span class="home-pin-label">${price}${pendingMark}</span>
+        <span class="home-pin-dot"${dotStyle}></span>
+        <span class="home-pin-label">${price}${metricMark}${pendingMark}</span>
       </div>
     `,
-    iconSize: [pending ? 118 : 72, 36],
+    iconSize: [pending || tint ? 128 : 72, 36],
     iconAnchor: [12, 18],
     popupAnchor: [24, -10],
   });
@@ -121,10 +163,8 @@ interface Props {
   criteria: Criteria;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  showNoise: boolean;
   showIsochrones: boolean;
-  showSuitability: boolean;
-  livabilityOverlay: LivabilityOverlay;
+  metricLayer: MapMetricLayer;
   safetyTracts: SafetyTractsFile | null;
   airTracts: AirQualityTractsFile | null;
 }
@@ -137,10 +177,8 @@ export function MapView({
   criteria,
   selectedId,
   onSelect,
-  showNoise,
   showIsochrones,
-  showSuitability,
-  livabilityOverlay,
+  metricLayer,
   safetyTracts,
   airTracts,
 }: Props) {
@@ -152,7 +190,8 @@ export function MapView({
   }, [anchors, listings]);
 
   const selected = listings.find((l) => l.id === selectedId);
-  const boundsList = listings;
+  const showSuitability = metricLayer === "suitability";
+  const showNoise = metricLayer === "noise";
 
   return (
     <MapContainer
@@ -165,7 +204,7 @@ export function MapView({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
       />
-      <FitToHomes listings={boundsList} />
+      <FitToHomes listings={listings} />
       <FocusSelected listing={selected} />
 
       <SuitabilityHeatLayer
@@ -178,7 +217,7 @@ export function MapView({
         airTracts={airTracts}
       />
 
-      {livabilityOverlay === "air" &&
+      {metricLayer === "air" &&
         airTracts?.tracts.map((t) => {
           const fill = airQualityColor(t.airQualityScore);
           return t.rings.map((positions, idx) => (
@@ -202,7 +241,7 @@ export function MapView({
           ));
         })}
 
-      {livabilityOverlay === "safety" &&
+      {metricLayer === "safety" &&
         safetyTracts?.features.map((f) => {
           const fill = tierColor(f.properties.tier);
           const rings = geoRingsToLatLng(f.geometry);
@@ -225,7 +264,7 @@ export function MapView({
           ));
         })}
 
-      {livabilityOverlay === "walk" &&
+      {metricLayer === "walk" &&
         NEIGHBORHOOD_LIVABILITY.map((n) => {
           const fill = walkColor(n.walkFallback);
           return (
@@ -303,7 +342,6 @@ export function MapView({
         </Marker>
       ))}
 
-      {/* Homes last + high z-index: primary map signal */}
       {listings.map((l) => {
         const isSelected = l.id === selectedId;
         const pendingLabel = pendingSaleLabel(l.status);
@@ -311,7 +349,7 @@ export function MapView({
           <Marker
             key={l.id}
             position={[l.lat, l.lng]}
-            icon={homeIcon(l, isSelected)}
+            icon={homeIcon(l, isSelected, metricLayer)}
             zIndexOffset={
               isSelected ? 2000 : l.flagged ? 1500 : pendingLabel ? 1200 : 1000
             }
@@ -325,7 +363,9 @@ export function MapView({
                   {pendingLabel ? ` · ${pendingLabel}` : ""}
                 </p>
                 {pendingLabel && (
-                  <p className="home-popup-pending">{pendingLabel} — under contract</p>
+                  <p className="home-popup-pending">
+                    {pendingLabel} — under contract
+                  </p>
                 )}
                 <p className="home-popup-addr">{l.address}</p>
                 <p className="home-popup-meta">

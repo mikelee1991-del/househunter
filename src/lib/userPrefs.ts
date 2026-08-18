@@ -9,7 +9,7 @@
  * Export/import JSON to move prefs between devices without committing them.
  */
 import { DEFAULT_ANCHORS, DEFAULT_CRITERIA } from "../data/anchors";
-import type { Anchor, AnchorId, Criteria } from "../types";
+import type { Anchor, Criteria } from "../types";
 
 export const PREFS_STORAGE_KEY = "househunter.userPrefs.v1";
 export const PREFS_VERSION = 1 as const;
@@ -20,8 +20,6 @@ export interface UserPrefs {
   criteria: Criteria;
   anchors: Anchor[];
 }
-
-const ANCHOR_IDS: AnchorId[] = ["spacex", "lax", "kentwood", "torrance"];
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -35,13 +33,32 @@ function bool(v: unknown, fallback: boolean): boolean {
   return typeof v === "boolean" ? v : fallback;
 }
 
-function mergeCriteria(raw: unknown): Criteria {
-  const base = { ...DEFAULT_CRITERIA, driveMinutes: { ...DEFAULT_CRITERIA.driveMinutes } };
-  if (!isRecord(raw)) return base;
-  const driveIn = isRecord(raw.driveMinutes) ? raw.driveMinutes : {};
-  const driveMinutes = { ...base.driveMinutes };
-  for (const id of ANCHOR_IDS) {
-    driveMinutes[id] = num(driveIn[id], base.driveMinutes[id]);
+function mergeDriveMinutes(
+  raw: unknown,
+  anchors: Anchor[],
+): Record<string, number> {
+  const base = { ...DEFAULT_CRITERIA.driveMinutes };
+  const driveIn = isRecord(raw) ? raw : {};
+  const out: Record<string, number> = { ...base };
+  for (const [k, v] of Object.entries(driveIn)) {
+    if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+  }
+  for (const a of anchors) {
+    if (out[a.id] == null) out[a.id] = 25;
+  }
+  return out;
+}
+
+function mergeCriteria(raw: unknown, anchors: Anchor[]): Criteria {
+  const base = {
+    ...DEFAULT_CRITERIA,
+    driveMinutes: { ...DEFAULT_CRITERIA.driveMinutes },
+  };
+  if (!isRecord(raw)) {
+    return {
+      ...base,
+      driveMinutes: mergeDriveMinutes(base.driveMinutes, anchors),
+    };
   }
   const neighborhoods = Array.isArray(raw.neighborhoods)
     ? raw.neighborhoods.filter((n): n is string => typeof n === "string")
@@ -66,7 +83,7 @@ function mergeCriteria(raw: unknown): Criteria {
     minAirQualityScore: num(raw.minAirQualityScore, base.minAirQualityScore),
     walkMin: num(raw.walkMin, base.walkMin),
     walkMax: num(raw.walkMax, base.walkMax),
-    driveMinutes,
+    driveMinutes: mergeDriveMinutes(raw.driveMinutes, anchors),
     requireWithinAllIsochrones: bool(
       raw.requireWithinAllIsochrones,
       base.requireWithinAllIsochrones,
@@ -76,38 +93,63 @@ function mergeCriteria(raw: unknown): Criteria {
 }
 
 function mergeAnchors(raw: unknown): Anchor[] {
-  const byId = new Map(
-    DEFAULT_ANCHORS.map((a) => [a.id, { ...a } as Anchor]),
-  );
-  if (!Array.isArray(raw)) return DEFAULT_ANCHORS.map((a) => ({ ...a }));
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return DEFAULT_ANCHORS.map((a) => ({ ...a }));
+  }
+
+  const defaultsById = new Map(DEFAULT_ANCHORS.map((a) => [a.id, a]));
+  const out: Anchor[] = [];
+  const seen = new Set<string>();
 
   for (const item of raw) {
     if (!isRecord(item)) continue;
     const id = item.id;
-    if (typeof id !== "string" || !ANCHOR_IDS.includes(id as AnchorId)) continue;
-    const prev = byId.get(id as AnchorId)!;
-    byId.set(id as AnchorId, {
-      ...prev,
-      label: typeof item.label === "string" ? item.label : prev.label,
-      address: typeof item.address === "string" ? item.address : prev.address,
+    if (typeof id !== "string" || !id.trim() || seen.has(id)) continue;
+    seen.add(id);
+    const fallback = defaultsById.get(id);
+    out.push({
+      id,
+      label:
+        typeof item.label === "string"
+          ? item.label
+          : (fallback?.label ?? "Place"),
+      address:
+        typeof item.address === "string"
+          ? item.address
+          : (fallback?.address ?? ""),
       description:
-        typeof item.description === "string" ? item.description : prev.description,
-      lat: num(item.lat, prev.lat),
-      lng: num(item.lng, prev.lng),
-      color: typeof item.color === "string" ? item.color : prev.color,
+        typeof item.description === "string"
+          ? item.description
+          : (fallback?.description ?? ""),
+      lat: num(item.lat, fallback?.lat ?? 33.85),
+      lng: num(item.lng, fallback?.lng ?? -118.39),
+      color:
+        typeof item.color === "string"
+          ? item.color
+          : (fallback?.color ?? "#0b6e4f"),
     });
   }
-  return ANCHOR_IDS.map((id) => byId.get(id)!);
+
+  // Ensure new built-in defaults (e.g. Harbor) appear for older saved prefs
+  for (const d of DEFAULT_ANCHORS) {
+    if (!seen.has(d.id)) {
+      out.push({ ...d });
+      seen.add(d.id);
+    }
+  }
+
+  return out.length > 0 ? out : DEFAULT_ANCHORS.map((a) => ({ ...a }));
 }
 
 export function normalizePrefs(raw: unknown): UserPrefs {
   const rec = isRecord(raw) ? raw : {};
+  const anchors = mergeAnchors(rec.anchors);
   return {
     version: PREFS_VERSION,
     savedAt:
       typeof rec.savedAt === "string" ? rec.savedAt : new Date().toISOString(),
-    criteria: mergeCriteria(rec.criteria),
-    anchors: mergeAnchors(rec.anchors),
+    criteria: mergeCriteria(rec.criteria, anchors),
+    anchors,
   };
 }
 

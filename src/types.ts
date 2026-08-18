@@ -1,4 +1,5 @@
-export type AnchorId = "spacex" | "lax" | "kentwood" | "torrance";
+/** Stable id for a drive-time place (built-ins + user-added). */
+export type AnchorId = string;
 
 export interface Anchor {
   id: AnchorId;
@@ -61,7 +62,8 @@ export interface Criteria {
   /** EPA National Walkability Index band (1–20) */
   walkMin: number;
   walkMax: number;
-  driveMinutes: Record<AnchorId, number>;
+  /** Max drive minutes per place id (built-in or user-added) */
+  driveMinutes: Record<string, number>;
   requireWithinAllIsochrones: boolean;
   neighborhoods: string[];
 }
@@ -129,7 +131,7 @@ export interface ListingAnalysis {
   safetyLabel: string;
   walkIndex: number;
   walkSource: "epa" | "neighborhood-fallback";
-  driveMinutes: Record<AnchorId, number>;
+  driveMinutes: Record<string, number>;
   oceanViewshed: {
     hasOceanView: boolean;
     clearRayFraction: number;
@@ -187,7 +189,7 @@ export interface ScoredListing extends Listing {
   /** Failed budget / beds / baths / sqft / status / SFR / garage / etc. */
   coreRejected: boolean;
   flagged: boolean;
-  driveMinutesEstimate: Record<AnchorId, number>;
+  driveMinutesEstimate: Record<string, number>;
   safetyScore?: number;
   safetyLabel?: string;
   walkIndex?: number;
