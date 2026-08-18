@@ -10,12 +10,19 @@ import {
   viewshedBandLabel,
 } from "../lib/oceanViewshed";
 import type { Anchor, AnchorId, Criteria } from "../types";
+import {
+  buildPrefs,
+  downloadPrefs,
+  parsePrefsJson,
+} from "../lib/userPrefs";
 
 interface Props {
   criteria: Criteria;
   anchors: Anchor[];
   onCriteriaChange: (c: Criteria) => void;
   onAnchorsChange: (a: Anchor[]) => void;
+  onImportPrefs: (prefs: { criteria: Criteria; anchors: Anchor[] }) => void;
+  onResetPrefs: () => void;
   flaggedCount: number;
   totalCount: number;
   isoMode: IsochroneMode;
@@ -108,6 +115,8 @@ export function CriteriaPanel({
   anchors,
   onCriteriaChange,
   onAnchorsChange,
+  onImportPrefs,
+  onResetPrefs,
   flaggedCount,
   totalCount,
   isoMode,
@@ -121,6 +130,8 @@ export function CriteriaPanel({
   const anchorsRef = useRef(anchors);
   anchorsRef.current = anchors;
   const geocodeTimers = useRef<Partial<Record<AnchorId, number>>>({});
+  const importRef = useRef<HTMLInputElement>(null);
+  const [prefsMsg, setPrefsMsg] = useState<string | null>(null);
   const [geoStatus, setGeoStatus] = useState<
     Partial<Record<AnchorId, GeoStatus>>
   >({});
@@ -544,6 +555,72 @@ export function CriteriaPanel({
             );
           })}
         </div>
+      </section>
+
+      <section className="panel-section">
+        <h2>Your preferences</h2>
+        <p className="hint">
+          Saved only in this browser. Export a JSON file to move them to
+          another device — never committed to the public site.
+        </p>
+        <div className="row-actions prefs-actions">
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => {
+              downloadPrefs(buildPrefs(criteria, anchors));
+              setPrefsMsg("Downloaded househunter-prefs.json");
+            }}
+          >
+            Export prefs
+          </button>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => importRef.current?.click()}
+          >
+            Import prefs
+          </button>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "Reset criteria and places to the public defaults? Your saved browser prefs will be cleared.",
+                )
+              ) {
+                return;
+              }
+              onResetPrefs();
+              setPrefsMsg("Reset to public defaults");
+            }}
+          >
+            Reset to public defaults
+          </button>
+        </div>
+        <input
+          ref={importRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+            try {
+              const text = await file.text();
+              const prefs = parsePrefsJson(text);
+              onImportPrefs(prefs);
+              setPrefsMsg(`Imported ${file.name}`);
+            } catch (err) {
+              setPrefsMsg(
+                err instanceof Error ? err.message : "Could not import prefs",
+              );
+            }
+          }}
+        />
+        {prefsMsg && <p className="hint prefs-msg">{prefsMsg}</p>}
       </section>
 
       <footer className="panel-foot">

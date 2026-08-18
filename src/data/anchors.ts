@@ -1,12 +1,16 @@
 import type { Anchor, Criteria } from "../types";
 
-/** Default pins — edit addresses in the Criteria panel or here. */
+/**
+ * Public defaults shipped in the repo / GitHub Pages build.
+ * Personal places & criteria belong in localStorage or gitignored
+ * `public/private-prefs.json` — never commit those.
+ */
 export const DEFAULT_ANCHORS: Anchor[] = [
   {
     id: "spacex",
-    label: "SpaceX (work)",
+    label: "SpaceX Hawthorne",
     address: "1 Rocket Road, Hawthorne, CA 90250",
-    description: "SpaceX Hawthorne",
+    description: "SpaceX Hawthorne campus",
     lat: 33.92055,
     lng: -118.32698,
     color: "#0b6e4f",
@@ -22,20 +26,20 @@ export const DEFAULT_ANCHORS: Anchor[] = [
   },
   {
     id: "kentwood",
-    label: "Kentwood Bluffs friends",
-    address: "6662 Kentwood Bluffs Dr, Los Angeles, CA 90045",
-    description: "Kentwood Bluffs",
-    lat: 33.98081,
-    lng: -118.40075,
+    label: "Westchester",
+    address: "7000 W Manchester Ave, Los Angeles, CA 90045",
+    description: "Westchester area",
+    lat: 33.9597,
+    lng: -118.4183,
     color: "#b85c38",
   },
   {
     id: "torrance",
-    label: "Torrance friends",
-    address: "1624 W 223rd St, Torrance, CA 90501",
-    description: "Torrance",
-    lat: 33.82443,
-    lng: -118.30702,
+    label: "Torrance",
+    address: "3031 Torrance Blvd, Torrance, CA 90503",
+    description: "Torrance civic area",
+    lat: 33.8358,
+    lng: -118.3406,
     color: "#6b4c9a",
   },
 ];
@@ -45,36 +49,21 @@ export const DEFAULT_CRITERIA: Criteria = {
   minBeds: 3,
   minBaths: 2,
   minSqft: 1600,
-  /**
-   * Off by default so inland Westchester / El Segundo / east MB still surface.
-   * Use the Usable (~35) chip when you want an ocean/sunset wedge.
-   */
   minOceanViewshed: 0,
   requireOceanView: false,
-  /** Deprecated: house facing no longer used — ocean/sunset viewshed matters */
   requireWestFacing: false,
   requireOutdoorSpace: true,
   requireSingleFamily: true,
   minGarageSpaces: 2,
   preferGarageSpaces: 3,
-  /** 75 includes El Segundo / Westchester under the LAX 75 CNEL lobe */
   maxNoiseCnel: 75,
-  /**
-   * Beach cities sit ~80–95; Westchester / Playa / El Segundo are ~72–78.
-   * 70 lets those northern pockets match without opening up high-crime areas.
-   */
   minSafetyScore: 70,
-  /**
-   * EPA NatWalkInd band (1–20). Default: above-average floor, no upper cap
-   * (most-walkable homes should not be filtered out).
-   */
   walkMin: 10.5,
   walkMax: 20,
   driveMinutes: {
     spacex: 25,
     lax: 30,
     kentwood: 35,
-    /** Slightly looser so Del Rey / north Westchester aren’t cut by the Euclidean estimate */
     torrance: 40,
   },
   requireWithinAllIsochrones: true,

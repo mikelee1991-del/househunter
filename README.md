@@ -16,6 +16,16 @@ Interactive map for finding ocean-view, generally west-facing homes in the Los A
 
 Deploys from `main` via GitHub Actions (Pages). Local `npm run dev` still uses `/`.
 
+### Private preferences
+
+Your criteria and place pins are **not** part of the public site config:
+
+1. Edits save automatically to **this browser** (`localStorage`).
+2. **Export prefs** / **Import prefs** in the left panel to move settings between devices.
+3. For local development only, copy `public/private-prefs.example.json` → `public/private-prefs.json` (gitignored) with your private addresses.
+
+Public defaults in the repo use generic South Bay pins (no personal friend addresses).
+
 ## Quick start
 
 ```bash
