@@ -26,77 +26,42 @@ for (const l of data.listings) {
   if (condition.renovatedYear) withYear += 1;
 
   const a = l.analysis;
-  const liv = a
-    ? {
-        safetyScore: a.safetyScore,
-        safetyLabel: a.safetyLabel,
-        walkIndex: a.walkIndex,
-        walkSource: a.walkSource,
-      }
-    : undefined;
-  const viewshed = a?.oceanViewshed
-    ? {
-        ...a.oceanViewshed,
-        buildingHits: 0,
-        eyeHeightM: 5.5,
-        facingUsedDeg: 270,
-        method: "dem-los+osm-buildings" as const,
-      }
-    : undefined;
-
-  // Attach condition before scoring so scoreListing can reuse it
-  if (a) {
-    a.condition = condition;
-  } else {
-    l.analysis = {
-      computedAt: new Date().toISOString(),
-      safetyScore: 65,
-      safetyLabel: "Moderate",
-      walkIndex: 12,
-      walkSource: "neighborhood-fallback",
-      driveMinutes: { spacex: 99, lax: 99, kentwood: 99, torrance: 99 },
-      oceanViewshed: {
-        hasOceanView: false,
-        clearRayFraction: 0,
-        score100: 0,
-        clearRays: 0,
-        testedRays: 0,
-        nearestCoastKm: 99,
-        terrainBlockedRays: 0,
-        buildingBlockedRays: 0,
-        confidence: "low",
-        summary: "Ocean viewshed unavailable",
-      },
-      condition,
-      defaultScore: {
-        score: 0,
-        flagged: false,
-        coreRejected: true,
-        matchReasons: [],
-        failReasons: [],
-      },
-    };
+  if (!a) {
+    // Don't invent stub GIS analysis — leave for ingest:precompute
+    continue;
   }
+
+  a.condition = condition;
+  const liv = {
+    safetyScore: a.safetyScore,
+    safetyLabel: a.safetyLabel,
+    walkIndex: a.walkIndex,
+    walkSource: a.walkSource,
+  };
+  const viewshed = {
+    ...a.oceanViewshed,
+    buildingHits: 0,
+    eyeHeightM: 5.5,
+    facingUsedDeg: 270,
+    method: "dem-los+osm-buildings" as const,
+  };
 
   const s = scoreListing(
     l,
     DEFAULT_CRITERIA,
     anchors,
     undefined,
-    a?.driveMinutes ?? l.analysis?.driveMinutes,
+    a.driveMinutes,
     liv,
     viewshed,
   );
-  if (l.analysis) {
-    l.analysis.condition = condition;
-    l.analysis.defaultScore = {
-      score: s.score,
-      flagged: s.flagged,
-      coreRejected: s.coreRejected,
-      matchReasons: s.matchReasons,
-      failReasons: s.failReasons,
-    };
-  }
+  a.defaultScore = {
+    score: s.score,
+    flagged: s.flagged,
+    coreRejected: s.coreRejected,
+    matchReasons: s.matchReasons,
+    failReasons: s.failReasons,
+  };
 }
 
 data.generatedAt = new Date().toISOString();

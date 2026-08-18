@@ -709,6 +709,11 @@ async function main() {
         ...prev,
         ...row,
         id: prev.id?.startsWith("sereno-") ? row.id : prev.id,
+        // Prefer richer prior description when search-only row is a stub
+        description:
+          String(prev.description || "").length > String(row.description || "").length
+            ? prev.description
+            : row.description,
         garageSpaces: Math.max(prev.garageSpaces || 0, row.garageSpaces || 0),
         outdoorSpace: Boolean(prev.outdoorSpace || row.outdoorSpace),
         outdoorTypes:
