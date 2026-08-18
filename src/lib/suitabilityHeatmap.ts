@@ -79,13 +79,15 @@ export function oceanProxyAt(
   let sSum = 0;
   for (const s of samples) {
     const d = haversineKm(lat, lng, s.lat, s.lng);
-    if (d > 2.8) continue;
-    const w = 1 / (d * d + 0.08);
+    if (d > 3.5) continue;
+    const w = 1 / (d * d + 0.06);
     wSum += w;
     sSum += w * s.score;
   }
-  const idw = wSum > 0 ? sSum / wSum : coastScore * 0.5;
-  return Math.round(idw * 0.7 + coastScore * 0.3);
+  const idw = wSum > 0 ? sSum / wSum : coastScore * 0.45;
+  // Prefer measured GIS viewshed samples when nearby; coast only fills gaps
+  const blend = wSum > 0 ? 0.82 : 0.55;
+  return Math.round(idw * blend + coastScore * (1 - blend));
 }
 
 type NbRing = {
@@ -471,6 +473,103 @@ export function paintSuitabilityHeatmap(
     bounds: [
       [SUITABILITY_BOUNDS.south, SUITABILITY_BOUNDS.west],
       [SUITABILITY_BOUNDS.north, SUITABILITY_BOUNDS.east],
+    ],
+    cols,
+    rows,
+    peakMean: peakN ? peakSum / peakN : 0,
+  };
+}
+
+/**
+ * Ocean/sunset openness colormap: faint inland → sky → teal → green (open wedge).
+ * Higher alpha than suitability mid-tones so the layer reads as a real overlay.
+ */
+export function oceanViewshedRgba(
+  score: number,
+): [number, number, number, number] {
+  const t = clamp(score / 100, 0, 1);
+  const a = Math.round(clamp((t - 0.05) / 0.7, 0, 1) * 225);
+
+  let r: number;
+  let g: number;
+  let b: number;
+  if (t < 0.35) {
+    const u = t / 0.35;
+    r = Math.round(90 + u * 40);
+    g = Math.round(110 + u * 50);
+    b = Math.round(130 + u * 40);
+  } else if (t < 0.6) {
+    const u = (t - 0.35) / 0.25;
+    r = Math.round(130 - u * 50);
+    g = Math.round(160 + u * 20);
+    b = Math.round(170 - u * 40);
+  } else {
+    const u = (t - 0.6) / 0.4;
+    r = Math.round(80 - u * 69);
+    g = Math.round(180 - u * 40);
+    b = Math.round(130 - u * 50);
+  }
+  return [r, g, b, a];
+}
+
+/**
+ * High-res continuous surface of GIS ocean/sunset openness for the map
+ * Ocean metric layer. Uses inverse-distance weighting of baked listing
+ * viewshed scores plus coast proximity (same model as suitability cells).
+ */
+export function paintOceanViewshedHeatmap(
+  listings: Listing[],
+  cols = 220,
+  rows = 165,
+): SuitabilityRaster {
+  const { south, west, north, east } = SUITABILITY_BOUNDS;
+  const samples = oceanSamplesFromListings(listings);
+  const canvas = document.createElement("canvas");
+  canvas.width = cols;
+  canvas.height = rows;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return {
+      url: "",
+      bounds: [
+        [south, west],
+        [north, east],
+      ],
+      cols,
+      rows,
+      peakMean: 0,
+    };
+  }
+
+  const img = ctx.createImageData(cols, rows);
+  let peakSum = 0;
+  let peakN = 0;
+
+  for (let row = 0; row < rows; row++) {
+    const lat = north - ((row + 0.5) / rows) * (north - south);
+    for (let col = 0; col < cols; col++) {
+      const lng = west + ((col + 0.5) / cols) * (east - west);
+      const score = oceanProxyAt(lat, lng, samples);
+      if (score >= 35) {
+        peakSum += score;
+        peakN += 1;
+      }
+      const [r, g, b, a] = oceanViewshedRgba(score);
+      const px = (row * cols + col) * 4;
+      img.data[px] = r;
+      img.data[px + 1] = g;
+      img.data[px + 2] = b;
+      img.data[px + 3] = a;
+    }
+  }
+
+  ctx.putImageData(img, 0, 0);
+
+  return {
+    url: canvas.toDataURL("image/png"),
+    bounds: [
+      [south, west],
+      [north, east],
     ],
     cols,
     rows,

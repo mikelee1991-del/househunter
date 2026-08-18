@@ -29,6 +29,7 @@ import {
 } from "../lib/mapMetrics";
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { ParameterScoreChart } from "./ParameterScoreChart";
+import { OceanViewshedHeatLayer } from "./OceanViewshedHeatLayer";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
 
 const NOISE_COLORS: Record<number, string> = {
@@ -194,6 +195,7 @@ export function MapView({
   const selected = listings.find((l) => l.id === selectedId);
   const showSuitability = metricLayer === "suitability";
   const showNoise = metricLayer === "noise";
+  const showOceanOverlay = metricLayer === "ocean";
 
   return (
     <MapContainer
@@ -227,6 +229,11 @@ export function MapView({
         listings={allListings}
         safetyTracts={safetyTracts}
         airTracts={airTracts}
+      />
+
+      <OceanViewshedHeatLayer
+        enabled={showOceanOverlay}
+        listings={allListings}
       />
 
       {metricLayer === "air" &&

@@ -1,7 +1,6 @@
 import { airQualityBand } from "../lib/airQuality";
 import {
   MAP_METRIC_OPTIONS,
-  metricLayerTitle,
   metricScoreColor,
   type MapMetricLayer,
 } from "../lib/mapMetrics";
@@ -103,26 +102,54 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
     );
   }
 
-  // ocean / condition — pin-colored layers
-  return (
-    <div className="safety-legend">
-      <strong>{metricLayerTitle(layer)} on homes</strong>
-      <p>
-        {layer === "ocean"
-          ? "Pin color = ocean/sunset openness score"
-          : "Pin color = listing condition score"}
-      </p>
-      <ul>
-        {SCORE_BANDS.map((b) => (
-          <li key={b.label}>
-            <i style={{ background: metricScoreColor(b.min + 10) }} />
-            {b.label}
-            <span>≥{b.min}</span>
+  if (layer === "ocean") {
+    return (
+      <div className="safety-legend">
+        <strong>Ocean / sunset openness</strong>
+        <p>
+          GIS surface from DEM line-of-sight viewsheds (IDW) + coast proximity.
+          Pins show each home’s score.
+        </p>
+        <ul>
+          <li>
+            <i style={{ background: "#0b6e4f" }} />
+            Strong wedge
+            <span>≥60</span>
           </li>
-        ))}
-      </ul>
-    </div>
-  );
+          <li>
+            <i style={{ background: "#2a9d8f" }} />
+            Usable wedge
+            <span>35–60</span>
+          </li>
+          <li>
+            <i style={{ background: "#7a9bb0" }} />
+            Mostly blocked
+            <span>&lt;35</span>
+          </li>
+        </ul>
+      </div>
+    );
+  }
+
+  if (layer === "condition") {
+    return (
+      <div className="safety-legend">
+        <strong>Condition on homes</strong>
+        <p>Pin color = listing-text condition score</p>
+        <ul>
+          {SCORE_BANDS.map((b) => (
+            <li key={b.label}>
+              <i style={{ background: metricScoreColor(b.min + 10) }} />
+              {b.label}
+              <span>≥{b.min}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 /** Chip row for switching map metrics (optional companion to the select). */
