@@ -334,6 +334,15 @@ p {
   margin-top: 0.35rem;
 }
 
+.prefs-actions {
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.prefs-msg {
+  margin-top: 0.35rem !important;
+}
+
 .panel-details {
   margin-top: 0.75rem;
   font-size: 0.85rem;
