@@ -131,6 +131,7 @@ async function main() {
         matchReasons: scored.matchReasons,
         failReasons: scored.failReasons,
       },
+      condition: scored.condition,
     };
 
     l.analysis = analysis;

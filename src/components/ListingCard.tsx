@@ -1,5 +1,6 @@
-import { isPropertyListingUrl } from "../lib/listingUrl";
+import { conditionChipLabel } from "../lib/condition";
 import { isPendingSaleStatus, pendingSaleLabel } from "../lib/listingStatus";
+import { isPropertyListingUrl } from "../lib/listingUrl";
 import type { Criteria, ScoredListing } from "../types";
 import { LivabilityMeters } from "./LivabilityMeters";
 
@@ -112,6 +113,22 @@ export function ListingCard({ listing, criteria, selected, onSelect }: Props) {
             {listing.garageSpaces}-car garage
             {listing.garageSpaces >= criteria.preferGarageSpaces ? " ★" : ""}
           </span>
+          {listing.condition && (
+            <span
+              className={`tag ${
+                listing.condition.isFixer ||
+                (criteria.minConditionScore > 0 &&
+                  listing.condition.score100 < criteria.minConditionScore)
+                  ? "tag-bad"
+                  : listing.condition.score100 >= 70
+                    ? "tag-ok"
+                    : ""
+              }`}
+              title={listing.condition.summary}
+            >
+              {conditionChipLabel(listing.condition)}
+            </span>
+          )}
           <span className="tag">Score {listing.score}</span>
         </div>
         {listing.flagged && listing.matchReasons.length > 0 && (

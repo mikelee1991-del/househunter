@@ -1,5 +1,6 @@
 import { walkBandLabel } from "../data/neighborhoodLivability";
 import type { Anchor, AnchorId, Criteria, Listing, ScoredListing } from "../types";
+import { analyzeCondition, type ConditionAssessment } from "./condition";
 import { driveMinutesToAnchors } from "./geo";
 import {
   pointInIsochrone,
@@ -7,6 +8,17 @@ import {
 } from "./isochrone";
 import type { ListingLivability } from "../hooks/useLivability";
 import type { OceanViewshedResult } from "./oceanViewshed";
+
+function resolveCondition(listing: Listing): ConditionAssessment {
+  if (listing.analysis?.condition) {
+    return listing.analysis.condition;
+  }
+  return analyzeCondition({
+    description: listing.description,
+    address: listing.address,
+    yearBuilt: listing.yearBuilt,
+  });
+}
 
 export function scoreListing(
   listing: Listing,
@@ -23,6 +35,7 @@ export function scoreListing(
 
   const approx = driveMinutesToAnchors(listing.lat, listing.lng, anchors);
   const drives = { ...approx, ...roadMinutes } as Record<AnchorId, number>;
+  const condition = resolveCondition(listing);
 
   if (listing.status === "pending") {
     failReasons.push("Pending sale / under contract");
@@ -145,6 +158,26 @@ export function scoreListing(
     );
   }
 
+  // Condition / renovation — listing-text screening (not an inspection)
+  const minCond = criteria.minConditionScore ?? 0;
+  if (criteria.excludeFixerUpper && condition.isFixer) {
+    failReasons.push(`Fixer-upper risk — ${condition.summary}`);
+  } else if (minCond > 0 && condition.score100 < minCond) {
+    failReasons.push(
+      `Condition ${condition.score100}/100 below min ${minCond} — ${condition.summary}`,
+    );
+  } else if (condition.score100 >= 70) {
+    score += 8;
+    matchReasons.push(
+      condition.renovatedYear
+        ? `Updated ~${condition.renovatedYear}`
+        : "Move-in ready language",
+    );
+  } else if (condition.score100 >= 55) {
+    score += 4;
+    matchReasons.push("Acceptable condition from listing text");
+  }
+
   // Noise
   if (listing.noiseCnel <= criteria.maxNoiseCnel) {
     score += 10;
@@ -243,7 +276,9 @@ export function scoreListing(
       r.startsWith("Missing ") || // beds / baths / sqft
       (criteria.requireSingleFamily && r.startsWith("Not SFR")) ||
       (criteria.requireOutdoorSpace && r === "No outdoor space") ||
-      r.startsWith("Garage "),
+      r.startsWith("Garage ") ||
+      (criteria.excludeFixerUpper && r.startsWith("Fixer-upper risk")) ||
+      ((criteria.minConditionScore ?? 0) > 0 && r.startsWith("Condition ")),
   );
 
   // Full match gates — also require viewshed, noise, drive times, livability
@@ -276,6 +311,7 @@ export function scoreListing(
     safetyLabel: livability?.safetyLabel,
     walkIndex: livability?.walkIndex,
     walkSource: livability?.walkSource,
+    condition,
     oceanViewshed: viewshed
       ? {
           hasOceanView: viewshed.hasOceanView,

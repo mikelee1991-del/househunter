@@ -59,6 +59,8 @@ function mergeCriteria(raw: unknown): Criteria {
     requireSingleFamily: bool(raw.requireSingleFamily, base.requireSingleFamily),
     minGarageSpaces: num(raw.minGarageSpaces, base.minGarageSpaces),
     preferGarageSpaces: num(raw.preferGarageSpaces, base.preferGarageSpaces),
+    excludeFixerUpper: bool(raw.excludeFixerUpper, base.excludeFixerUpper),
+    minConditionScore: num(raw.minConditionScore, base.minConditionScore),
     maxNoiseCnel: num(raw.maxNoiseCnel, base.maxNoiseCnel),
     minSafetyScore: num(raw.minSafetyScore, base.minSafetyScore),
     walkMin: num(raw.walkMin, base.walkMin),
