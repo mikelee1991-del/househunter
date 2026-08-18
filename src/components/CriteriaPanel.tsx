@@ -520,6 +520,10 @@ export function CriteriaPanel({
       <section className="panel-section">
         <h2>Places & drive times</h2>
         <p className="hint">
+          Each place draws a drive-time isochrone. Use <strong>Add place</strong>{" "}
+          for more (e.g. school, gym). Defaults include Redondo Harbor at 20 min.
+        </p>
+        <p className="hint">
           {isoModeLabel(isoMode)}
           {isoProgress ? ` · ${isoProgress}` : ""}
         </p>
