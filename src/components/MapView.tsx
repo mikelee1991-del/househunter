@@ -165,6 +165,7 @@ interface Props {
   onSelect: (id: string) => void;
   showIsochrones: boolean;
   metricLayer: MapMetricLayer;
+  satellite: boolean;
   safetyTracts: SafetyTractsFile | null;
   airTracts: AirQualityTractsFile | null;
 }
@@ -179,6 +180,7 @@ export function MapView({
   onSelect,
   showIsochrones,
   metricLayer,
+  satellite,
   safetyTracts,
   airTracts,
 }: Props) {
@@ -201,8 +203,18 @@ export function MapView({
       scrollWheelZoom
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        key={satellite ? "sat" : "light"}
+        attribution={
+          satellite
+            ? 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics'
+            : '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+        }
+        url={
+          satellite
+            ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        }
+        maxZoom={satellite ? 19 : 20}
       />
       <FitToHomes listings={listings} />
       <FocusSelected listing={selected} />

@@ -393,11 +393,11 @@ export function scoreHeatmapCell(
   return clamp(score, 0, 100);
 }
 
-/** Sequential colormap: faint cool → amber → brand green (best). */
+/** Sequential colormap: cool → amber → brand green (best). */
 export function suitabilityRgba(score: number): [number, number, number, number] {
   const t = clamp(score / 100, 0, 1);
-  // Alpha ramps so weak areas barely tint the basemap
-  const a = Math.round(clamp((t - 0.28) / 0.72, 0, 1) * 195);
+  // Stronger alpha so “best areas” read clearly over the basemap
+  const a = Math.round(clamp((t - 0.18) / 0.82, 0, 1) * 235);
 
   let r: number;
   let g: number;

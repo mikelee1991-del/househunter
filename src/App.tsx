@@ -41,6 +41,7 @@ export default function App() {
   const [showIsochrones, setShowIsochrones] = useState(true);
   /** Default on: show every home that fits the selected criteria */
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(true);
+  const [satellite, setSatellite] = useState(false);
   /** One metric at a time — default Best areas so “where to look” is obvious */
   const [metricLayer, setMetricLayer] =
     useState<MapMetricLayer>("suitability");
@@ -203,6 +204,14 @@ export default function App() {
             <label>
               <input
                 type="checkbox"
+                checked={satellite}
+                onChange={(e) => setSatellite(e.target.checked)}
+              />
+              Satellite
+            </label>
+            <label>
+              <input
+                type="checkbox"
                 checked={showFlaggedOnly}
                 onChange={(e) => setShowFlaggedOnly(e.target.checked)}
               />
@@ -231,6 +240,7 @@ export default function App() {
             onSelect={setSelectedId}
             showIsochrones={showIsochrones && isoMode !== "loading"}
             metricLayer={metricLayer}
+            satellite={satellite}
             safetyTracts={safetyTracts}
             airTracts={airTracts}
           />
