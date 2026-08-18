@@ -244,10 +244,10 @@ export function MapView({
               )}
               pathOptions={{
                 color: a.color,
-                fillColor: a.color,
-                fillOpacity: 0.04,
-                weight: 1.5,
-                opacity: 0.55,
+                fill: false,
+                fillOpacity: 0,
+                weight: 2,
+                opacity: 0.85,
                 dashArray: "5 7",
               }}
             >
