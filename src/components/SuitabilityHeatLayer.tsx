@@ -65,7 +65,7 @@ export function SuitabilityHeatLayer({
     <ImageOverlay
       url={raster.url}
       bounds={raster.bounds}
-      opacity={0.32}
+      opacity={0.22}
       zIndex={330}
       interactive={false}
     />

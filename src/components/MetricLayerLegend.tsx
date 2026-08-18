@@ -15,7 +15,7 @@ const SCORE_BANDS = [
 ];
 
 const ADDRESS_NOTE =
-  "One ~40 m halo per listing address — not a tract or neighborhood wash.";
+  "One halo per listing address (tightens to ~40 m when zoomed in) — not a tract wash.";
 
 export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "off" || layer === "suitability") return null;
