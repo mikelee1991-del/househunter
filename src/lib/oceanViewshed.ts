@@ -477,8 +477,9 @@ function syntheticUrbanBlocksRay(
     if (ground > viewerGround + 12) continue;
     const t = Math.min(0.98, Math.max(0.02, s.distKm / totalKm));
     const losElev = viewerElev + (targetElev - viewerElev) * t;
-    const obstacleTop = ground + 7.5; // ~2-story SFR / street trees
-    if (obstacleTop > losElev + 1.5) return true;
+    // 2-story + street trees must clear upper-story eye height (~6.5m)
+    const obstacleTop = ground + 10;
+    if (obstacleTop > losElev + 0.5) return true;
   }
   return false;
 }
