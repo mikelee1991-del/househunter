@@ -280,6 +280,25 @@ async function fetchElevations(
     if (!elevs) {
       await sleep(1100);
       elevs = await fetchOpenTopoChunk(batch);
+    } else {
+      // Open-Meteo occasionally returns 0 on dry land (void / water mask).
+      // Those false zeros make hill lots look like beach flats.
+      const suspect = batch
+        .map((b, j) => ({ b, j, e: elevs![j] }))
+        .filter(({ e, b }) => e == null || (e <= 0.5 && b.lng > -118.49));
+      if (suspect.length) {
+        await sleep(1100);
+        try {
+          const ned = await fetchOpenTopoChunk(suspect.map((s) => s.b));
+          suspect.forEach((s, k) => {
+            if (ned[k] != null && Number.isFinite(ned[k])) {
+              elevs![s.j] = ned[k];
+            }
+          });
+        } catch {
+          /* keep Open-Meteo values */
+        }
+      }
     }
     batch.forEach((b, j) => {
       const e = elevs![j] ?? 0;
@@ -406,13 +425,18 @@ function buildingBlocksRay(
 ): boolean {
   const totalKm = haversineKm(lat0, lng0, lat1, lng1);
   if (totalKm < 0.05) return false;
+  // Bluff / beach edge looking straight onto water — neighbors don't sit in front
+  if (coastKm < 0.4) return false;
   const brgTarget = bearingDeg(lat0, lng0, lat1, lng1);
   // Don't invent occlusion past the shoreline / over water
   const maxOccKm = Math.max(0.12, coastKm + 0.05);
+  // On hills/bluffs, only near-field peers share our ground height; farther
+  // buildings sit downhill and must not be modeled at viewerGround.
+  const peerKm = viewerGround >= 35 ? 0.22 : maxOccKm;
 
   for (const b of buildings) {
     const dViewer = haversineKm(lat0, lng0, b.lat, b.lng);
-    if (dViewer < 0.035 || dViewer > maxOccKm) continue;
+    if (dViewer < 0.035 || dViewer > peerKm) continue;
     if (dViewer > totalKm) continue;
     const brgB = bearingDeg(lat0, lng0, b.lat, b.lng);
     // Must sit nearly on this ray (not just "somewhere in the wedge")
@@ -428,8 +452,7 @@ function buildingBlocksRay(
 
 /**
  * When Overpass is empty/rate-limited, invent modest urban fabric only on the
- * flat land approach to the coast (not over water, not on true ridges).
- * Elevated hill viewers keep LOS over lower rooftops.
+ * flat land approach to the coast (not over water, not on hills/bluffs).
  */
 function syntheticUrbanBlocksRay(
   viewerElev: number,
@@ -440,18 +463,18 @@ function syntheticUrbanBlocksRay(
   totalKm: number,
   coastKm: number,
 ): boolean {
-  // Beach / bluff edge: sand and water — don't invent a city in front
-  if (coastKm < 0.8) return false;
-  const maxBlockKm = Math.min(coastKm - 0.08, 1.6);
+  // Hills / PV bluffs: DEM handles terrain; don't invent a rooftop city
+  if (viewerGround >= 35) return false;
+  // On the sand / first beach block: don't invent obstacles over water approach
+  if (coastKm < 0.45) return false;
+  const maxBlockKm = Math.min(coastKm - 0.05, 1.5);
   if (maxBlockKm < 0.08) return false;
 
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i];
     if (s.distKm < 0.07 || s.distKm > maxBlockKm) continue;
     const ground = sampleElevs[i] ?? viewerGround;
-    // Skip ridges — DEM terrainClear already handles those
-    if (ground > viewerGround + 18) continue;
-    // Hill / bluff viewer looking over lower flats: rooftops sit below LOS
+    if (ground > viewerGround + 12) continue;
     const t = Math.min(0.98, Math.max(0.02, s.distKm / totalKm));
     const losElev = viewerElev + (targetElev - viewerElev) * t;
     const obstacleTop = ground + 7.5; // ~2-story SFR / street trees
