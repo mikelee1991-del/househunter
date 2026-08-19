@@ -122,10 +122,11 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "ocean") {
     return (
       <div className="safety-legend">
-        <strong>Ocean / sunset (per address)</strong>
+        <strong>Ocean / sunset wedge</strong>
         <p>
-          {ADDRESS_NOTE} DEM line-of-sight score baked on each listing (~18
-          rays).
+          Directional sunset fans on strong scores (≥60). Soft halos only for
+          real wedges (≥35). Inland flat blocks stay dark — DEM + urban canopy
+          proxy, not tree survey.
         </p>
         <ul>
           <li>

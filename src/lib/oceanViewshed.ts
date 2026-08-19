@@ -13,9 +13,9 @@ import { haversineKm } from "./geo";
  * score100 = round(clear rays / tested rays × 100). Higher means a wider
  * clear ocean/sunset wedge. “Has view” when score ≥35 and ≥2 rays clear.
  *
- * Density: ~18 sunset-band rays, ~180 m DEM steps, densified offshore
- * targets, ~900 m building occlusion search — address-specific, not
- * neighborhood-smoothed.
+ * Density: ~18 evenly spaced sunset-band rays, ~180 m DEM steps, densified
+ * offshore targets, OSM buildings when available + flat-urban canopy proxy
+ * when Overpass is empty — address-specific, not neighborhood-smoothed.
  */
 
 export type ViewshedConfidence = "high" | "medium" | "low";
@@ -79,7 +79,16 @@ const OPENTOPO_URL = "https://api.opentopodata.org/v1/ned10m";
 const OVERPASS_URLS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.osm.ch/api/interpreter",
 ];
+
+/** Required by public Overpass mirrors — missing UA → 406/429 and empty buildings. */
+const OVERPASS_HEADERS: Record<string, string> = {
+  "Content-Type": "text/plain",
+  Accept: "application/json",
+  "User-Agent":
+    "HousehunterSouthBay/0.1 (ocean-viewshed screening; https://github.com/mikelee1991-del/househunter)",
+};
 
 const elevCache = new Map<string, number>();
 
@@ -121,8 +130,11 @@ function nearestCoastKm(lat: number, lng: number): number {
 }
 
 /**
- * Pick Pacific/offshore targets in the sunset azimuth band from this lot.
- * Ignores house facing — sunsets + ocean are the goal.
+ * Pick Pacific/offshore targets spread evenly across the sunset cone.
+ *
+ * Important: do NOT take the N targets closest to due-west — densified
+ * coastline creates dozens of near-identical bearings, which collapses the
+ * wedge into a single ray and yields bogus 0/100 or 100/100 scores.
  */
 function pickOceanTargets(
   lat: number,
@@ -132,35 +144,67 @@ function pickOceanTargets(
   maxTargets = 18,
 ): [number, number][] {
   const offshore = offshoreTargets();
-  const scored = offshore
+  if (!offshore.length || maxTargets <= 0) return [];
+
+  const candidates = offshore
     .map(([olng, olat]) => {
       const brg = bearingDeg(lat, lng, olat, olng);
       const delta = angleDelta(brg, coneCenterDeg);
       const dist = haversineKm(lat, lng, olat, olng);
-      return { olng, olat, delta, dist };
+      return { olng, olat, brg, delta, dist };
     })
-    .filter((t) => t.delta <= coneHalfAngle && t.dist <= 18)
-    .sort((a, b) => a.delta - b.delta || a.dist - b.dist);
+    .filter((t) => t.delta <= coneHalfAngle && t.dist >= 0.35 && t.dist <= 18);
 
-  const picked = scored.slice(0, maxTargets);
-  if (picked.length >= 3) {
-    return picked.map((t) => [t.olng, t.olat] as [number, number]);
+  if (candidates.length < 3) {
+    return [...offshore]
+      .map(([olng, olat]) => {
+        const brg = bearingDeg(lat, lng, olat, olng);
+        return {
+          olng,
+          olat,
+          dist: haversineKm(lat, lng, olat, olng),
+          delta: angleDelta(brg, coneCenterDeg),
+        };
+      })
+      .sort((a, b) => a.delta - b.delta || a.dist - b.dist)
+      .slice(0, maxTargets)
+      .map((t) => [t.olng, t.olat] as [number, number]);
   }
 
-  // Fallback: nearest offshore points (still prefer sunset-band bearings)
-  return [...offshore]
-    .map(([olng, olat]) => {
-      const brg = bearingDeg(lat, lng, olat, olng);
-      return {
-        olng,
-        olat,
-        dist: haversineKm(lat, lng, olat, olng),
-        delta: angleDelta(brg, coneCenterDeg),
-      };
-    })
-    .sort((a, b) => a.delta - b.delta || a.dist - b.dist)
-    .slice(0, maxTargets)
-    .map((t) => [t.olng, t.olat] as [number, number]);
+  const picked: [number, number][] = [];
+  const used = new Set<string>();
+
+  for (let i = 0; i < maxTargets; i++) {
+    const t = maxTargets === 1 ? 0.5 : i / (maxTargets - 1);
+    const wantBrg =
+      (coneCenterDeg - coneHalfAngle + t * 2 * coneHalfAngle + 360) % 360;
+
+    let best: (typeof candidates)[number] | null = null;
+    let bestCost = Infinity;
+    for (const c of candidates) {
+      const key = `${c.olng.toFixed(4)},${c.olat.toFixed(4)}`;
+      if (used.has(key)) continue;
+      const ang = angleDelta(c.brg, wantBrg);
+      if (ang > 12) continue;
+      // Prefer a mid-range offshore target for stable LOS sampling
+      const cost = ang + Math.abs(c.dist - 5) * 0.08;
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = c;
+      }
+    }
+    if (!best) continue;
+    const key = `${best.olng.toFixed(4)},${best.olat.toFixed(4)}`;
+    used.add(key);
+    picked.push([best.olng, best.olat]);
+  }
+
+  return picked.length >= 3
+    ? picked
+    : candidates
+        .sort((a, b) => a.delta - b.delta || a.dist - b.dist)
+        .slice(0, maxTargets)
+        .map((t) => [t.olng, t.olat] as [number, number]);
 }
 
 function samplesAlongRay(
@@ -313,7 +357,7 @@ async function fetchBuildingsInWedge(
       const res = await fetch(endpoint, {
         method: "POST",
         body: query,
-        headers: { "Content-Type": "text/plain" },
+        headers: OVERPASS_HEADERS,
       });
       if (!res.ok) continue;
       const json = (await res.json()) as {
@@ -358,22 +402,60 @@ function buildingBlocksRay(
   viewerGround: number,
   targetElev: number,
   buildings: OsmBuilding[],
+  coastKm: number,
 ): boolean {
   const totalKm = haversineKm(lat0, lng0, lat1, lng1);
   if (totalKm < 0.05) return false;
+  const brgTarget = bearingDeg(lat0, lng0, lat1, lng1);
+  // Don't invent occlusion past the shoreline / over water
+  const maxOccKm = Math.max(0.12, coastKm + 0.05);
 
   for (const b of buildings) {
     const dViewer = haversineKm(lat0, lng0, b.lat, b.lng);
-    const dTarget = haversineKm(lat1, lng1, b.lat, b.lng);
-    // Near the ray segment if triangle inequality is nearly tight
-    if (dViewer + dTarget > totalKm + 0.08) continue;
-    if (dViewer < 0.03) continue; // skip own footprint / curb
+    if (dViewer < 0.035 || dViewer > maxOccKm) continue;
+    if (dViewer > totalKm) continue;
+    const brgB = bearingDeg(lat0, lng0, b.lat, b.lng);
+    // Must sit nearly on this ray (not just "somewhere in the wedge")
+    if (angleDelta(brgTarget, brgB) > 7) continue;
 
     const t = Math.min(0.98, Math.max(0.02, dViewer / totalKm));
     const losElev = viewerElev + (targetElev - viewerElev) * t;
-    // Near-field: assume building ground ≈ viewer ground (flat South Bay blocks)
     const buildingTop = viewerGround + b.heightM;
     if (buildingTop > losElev + 1.5) return true;
+  }
+  return false;
+}
+
+/**
+ * When Overpass is empty/rate-limited, invent modest urban fabric only on the
+ * flat land approach to the coast (not over water, not on true ridges).
+ * Elevated hill viewers keep LOS over lower rooftops.
+ */
+function syntheticUrbanBlocksRay(
+  viewerElev: number,
+  viewerGround: number,
+  targetElev: number,
+  samples: SamplePoint[],
+  sampleElevs: number[],
+  totalKm: number,
+  coastKm: number,
+): boolean {
+  // Beach / bluff edge: sand and water — don't invent a city in front
+  if (coastKm < 0.8) return false;
+  const maxBlockKm = Math.min(coastKm - 0.08, 1.6);
+  if (maxBlockKm < 0.08) return false;
+
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    if (s.distKm < 0.07 || s.distKm > maxBlockKm) continue;
+    const ground = sampleElevs[i] ?? viewerGround;
+    // Skip ridges — DEM terrainClear already handles those
+    if (ground > viewerGround + 18) continue;
+    // Hill / bluff viewer looking over lower flats: rooftops sit below LOS
+    const t = Math.min(0.98, Math.max(0.02, s.distKm / totalKm));
+    const losElev = viewerElev + (targetElev - viewerElev) * t;
+    const obstacleTop = ground + 7.5; // ~2-story SFR / street trees
+    if (obstacleTop > losElev + 1.5) return true;
   }
   return false;
 }
@@ -387,7 +469,7 @@ export async function analyzeOceanViewshed(input: {
   eyeHeightM?: number;
 }): Promise<OceanViewshedResult> {
   const facingUsedDeg = SUNSET_OCEAN_CONE_CENTER_DEG;
-  const eyeHeightM = input.eyeHeightM ?? 5.5;
+  const eyeHeightM = input.eyeHeightM ?? 6.5;
   const coastKm = nearestCoastKm(input.lat, input.lng);
 
   const targets = pickOceanTargets(
@@ -470,7 +552,7 @@ export async function analyzeOceanViewshed(input: {
       continue;
     }
 
-    const buildingHit = buildingBlocksRay(
+    let buildingHit = buildingBlocksRay(
       input.lat,
       input.lng,
       tlat,
@@ -479,7 +561,19 @@ export async function analyzeOceanViewshed(input: {
       viewerGround,
       targetElev,
       buildings,
+      coastKm,
     );
+    if (!buildingHit && buildings.length === 0) {
+      buildingHit = syntheticUrbanBlocksRay(
+        viewerElev,
+        viewerGround,
+        targetElev,
+        samples,
+        sampleElevs,
+        totalKm,
+        coastKm,
+      );
+    }
     if (buildingHit) {
       buildingBlockedRays += 1;
       continue;

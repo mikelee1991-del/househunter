@@ -24,6 +24,7 @@ import {
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { ParameterScoreChart } from "./ParameterScoreChart";
 import { AddressMetricHeatLayer } from "./AddressMetricHeatLayer";
+import { OceanViewshedHeatLayer } from "./OceanViewshedHeatLayer";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
 
 const NOISE_COLORS: Record<number, string> = {
@@ -173,8 +174,11 @@ export function MapView({
   const selected = listings.find((l) => l.id === selectedId);
   const showSuitability = metricLayer === "suitability";
   const showNoise = metricLayer === "noise";
+  const showOcean = metricLayer === "ocean";
   const showAddressHeat =
-    metricLayer !== "off" && metricLayer !== "suitability";
+    metricLayer !== "off" &&
+    metricLayer !== "suitability" &&
+    metricLayer !== "ocean";
 
   return (
     <MapContainer
@@ -216,12 +220,13 @@ export function MapView({
         listings={allListings}
       />
 
-      {/* Per-metric: lot-scale halos only (no tract wash) */}
+      {/* Per-metric: lot-scale halos (ocean uses dedicated wedge layer) */}
       <AddressMetricHeatLayer
         enabled={showAddressHeat}
         metric={metricLayer}
         listings={allListings}
       />
+      <OceanViewshedHeatLayer enabled={showOcean} listings={allListings} />
 
       {showNoise &&
         LAX_NOISE_POLYGONS.map((poly) => (
