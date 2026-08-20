@@ -13,14 +13,13 @@ interface Props {
   listings: Listing[];
 }
 
-type NbFill = {
+type NbOutline = {
   name: string;
   walkIndex: number;
   positions: [number, number][];
 };
 
-/** Mean EPA walk from listings when enough samples; else neighborhood fallback. */
-function neighborhoodFills(listings: Listing[]): NbFill[] {
+function neighborhoodOutlines(listings: Listing[]): NbOutline[] {
   const sum = new Map<string, number>();
   const count = new Map<string, number>();
   for (const l of listings) {
@@ -40,50 +39,48 @@ function neighborhoodFills(listings: Listing[]): NbFill[] {
     return {
       name: n.name,
       walkIndex,
-      // Leaflet positions are [lat, lng]
       positions: n.polygon.map(([lat, lng]) => [lat, lng] as [number, number]),
     };
   });
 }
 
 /**
- * Continuous walkability across the metro: neighborhood choropleth (primary)
- * plus a soft bounds-wide wash so gaps/ocean edges still read as area, not spots.
+ * Full-area walkability: continuous raster across South Bay bounds (every
+ * pixel gets a walk score via neighborhood / nearest-nb). Thin outlines +
+ * tooltips label neighborhoods without leaving choropleth gaps.
  */
 export function WalkabilityHeatLayer({ enabled, listings }: Props) {
-  const fills = useMemo(
-    () => (enabled ? neighborhoodFills(listings) : []),
+  const wash = useMemo(() => {
+    if (!enabled) return null;
+    return paintWalkabilityHeatmap(listings, 280, 210);
+  }, [enabled, listings]);
+
+  const outlines = useMemo(
+    () => (enabled ? neighborhoodOutlines(listings) : []),
     [enabled, listings],
   );
 
-  const wash = useMemo(() => {
-    if (!enabled) return null;
-    return paintWalkabilityHeatmap(listings, 200, 150);
-  }, [enabled, listings]);
-
-  if (!enabled) return null;
+  if (!enabled || !wash?.url) return null;
 
   return (
     <>
-      {wash?.url && (
-        <ImageOverlay
-          url={wash.url}
-          bounds={wash.bounds}
-          opacity={0.35}
-          zIndex={335}
-          interactive={false}
-        />
-      )}
-      {fills.map((n) => (
+      <ImageOverlay
+        url={wash.url}
+        bounds={wash.bounds}
+        opacity={0.82}
+        zIndex={340}
+        interactive={false}
+      />
+      {outlines.map((n) => (
         <Polygon
           key={`walk-nb-${n.name}`}
           positions={n.positions}
           pathOptions={{
             color: walkColor(n.walkIndex),
-            weight: 1,
-            opacity: 0.55,
-            fillColor: walkColor(n.walkIndex),
-            fillOpacity: 0.48,
+            weight: 1.25,
+            opacity: 0.65,
+            fill: false,
+            fillOpacity: 0,
           }}
         >
           <Tooltip sticky>

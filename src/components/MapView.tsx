@@ -39,7 +39,17 @@ function FitToHomes({ listings }: { listings: ScoredListing[] }) {
   const key = listings.map((l) => l.id).join("|");
   useEffect(() => {
     if (!listings.length) return;
-    const pts = listings.map((l) => [l.lat, l.lng] as [number, number]);
+    // Ignore geocode disasters / far outliers so the South Bay overlay fills the view
+    const pts = listings
+      .filter(
+        (l) =>
+          l.lat >= 33.65 &&
+          l.lat <= 34.15 &&
+          l.lng >= -118.65 &&
+          l.lng <= -118.15,
+      )
+      .map((l) => [l.lat, l.lng] as [number, number]);
+    if (!pts.length) return;
     map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 13 });
     // key captures listing set identity without depending on array ref churn
     // eslint-disable-next-line react-hooks/exhaustive-deps
