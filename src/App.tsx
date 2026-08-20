@@ -77,10 +77,22 @@ export default function App() {
     progress: viewshedProgress,
   } = useOceanViewshed(listings, true);
   const { data: safetyTracts } = useSafetyTracts(
-    metricLayer === "safety" || metricLayer === "suitability",
+    metricLayer === "safety" ||
+      metricLayer === "air" ||
+      metricLayer === "suitability" ||
+      metricLayer === "walk" ||
+      metricLayer === "condition" ||
+      metricLayer === "ocean" ||
+      metricLayer === "noise",
   );
   const { data: airTracts } = useAirQualityTracts(
-    metricLayer === "air" || metricLayer === "suitability",
+    metricLayer === "air" ||
+      metricLayer === "safety" ||
+      metricLayer === "suitability" ||
+      metricLayer === "walk" ||
+      metricLayer === "condition" ||
+      metricLayer === "ocean" ||
+      metricLayer === "noise",
   );
   const {
     isochrones,
@@ -155,6 +167,36 @@ export default function App() {
       : showFlaggedOnly
         ? matches
         : eligible;
+
+  // Bake live/client GIS viewsheds onto inventory so ocean dots/halos update
+  // for every address (not only the selected pin).
+  const mapInventory = useMemo(() => {
+    if (!Object.keys(viewshedById).length) return listings;
+    return listings.map((l) => {
+      const v = viewshedById[l.id];
+      if (!v || !l.analysis) return l;
+      return {
+        ...l,
+        oceanView: v.hasOceanView,
+        analysis: {
+          ...l.analysis,
+          oceanViewshed: {
+            hasOceanView: v.hasOceanView,
+            clearRayFraction: v.clearRayFraction,
+            score100: v.score100,
+            clearRays: v.clearRays,
+            testedRays: v.testedRays,
+            nearestCoastKm: v.nearestCoastKm,
+            terrainBlockedRays: v.terrainBlockedRays,
+            buildingBlockedRays: v.buildingBlockedRays,
+            confidence: v.confidence,
+            summary: v.summary,
+          },
+        },
+      };
+    });
+  }, [listings, viewshedById]);
+
   const flaggedCount = matches.length;
   const top = matches[0] ?? eligible[0] ?? scored[0];
   const selected =
@@ -241,7 +283,7 @@ export default function App() {
             anchors={anchors}
             isochrones={isochrones}
             listings={visible}
-            allListings={listings}
+            allListings={mapInventory}
             criteria={criteria}
             selectedId={selectedId}
             onSelect={setSelectedId}

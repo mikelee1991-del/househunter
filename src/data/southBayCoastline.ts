@@ -7,9 +7,15 @@
  * gets many distinct sunset-band bearings (address-level ray density).
  */
 export const SOUTH_BAY_COASTLINE_VERTICES: [number, number][] = [
-  [-118.475, 34.02], // Venice / Marina north
-  [-118.48, 33.995],
-  [-118.47, 33.97], // Playa del Rey
+  [-118.565, 34.06], // Pacific Palisades / Will Rogers
+  [-118.55, 34.05],
+  [-118.535, 34.04],
+  [-118.515, 34.025], // Santa Monica north
+  [-118.5, 34.01], // Santa Monica Pier approach
+  [-118.49, 33.998],
+  [-118.475, 33.985], // Venice
+  [-118.48, 33.97], // Marina / Playa north
+  [-118.47, 33.96], // Playa del Rey
   [-118.455, 33.955],
   [-118.445, 33.94], // Dockweiler
   [-118.435, 33.925], // El Segundo beach

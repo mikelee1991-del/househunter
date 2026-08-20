@@ -6,6 +6,7 @@ import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { Anchor, AnchorId, Criteria, Listing } from "../types";
 import { estimateDriveMinutes, haversineKm } from "./geo";
 import {
+  pointInAnyIsochrone,
   pointInIsochrone,
   pointInRing,
   type IsochroneMap,
@@ -14,8 +15,9 @@ import {
 /** South Bay coverage for the suitability raster (lat/lng). */
 export const SUITABILITY_BOUNDS = {
   south: 33.705,
-  west: -118.485,
-  north: 34.02,
+  /** West enough for Santa Monica / Pacific Palisades shoreline */
+  west: -118.58,
+  north: 34.08,
   east: -118.235,
 } as const;
 
@@ -196,12 +198,13 @@ export function oceanSamplesFromListings(
 ): HeatmapOceanSample[] {
   const out: HeatmapOceanSample[] = [];
   for (const l of listings) {
-    const score = l.analysis?.oceanViewshed?.score100;
-    if (typeof score === "number") {
-      out.push({ lat: l.lat, lng: l.lng, score });
-    } else if (l.oceanView) {
-      out.push({ lat: l.lat, lng: l.lng, score: 70 });
+    const ov = l.analysis?.oceanViewshed;
+    if (!ov || typeof ov.score100 !== "number") continue;
+    if ((ov.nearestCoastKm ?? 99) > 8) continue;
+    if (/too far inland|unavailable|pending rebake/i.test(ov.summary || "")) {
+      continue;
     }
+    out.push({ lat: l.lat, lng: l.lng, score: ov.score100 });
   }
   return out;
 }
@@ -465,14 +468,25 @@ export function paintSuitabilityHeatmap(
   let peakSum = 0;
   let peakN = 0;
 
+  const clipUnion =
+    isochrones && anchors.some((a) => !!isochrones[a.id])
+      ? (lat: number, lng: number) =>
+          pointInAnyIsochrone(lat, lng, anchors, isochrones!)
+      : null;
+
   for (let i = 0; i < cells.length; i++) {
-    const score = scoreHeatmapCell(cells[i], criteria, anchors, isochrones);
+    const cell = cells[i];
+    const px = i * 4;
+    if (clipUnion && !clipUnion(cell.lat, cell.lng)) {
+      img.data[px + 3] = 0;
+      continue;
+    }
+    const score = scoreHeatmapCell(cell, criteria, anchors, isochrones);
     if (score >= 55) {
       peakSum += score;
       peakN += 1;
     }
     const [r, g, b, a] = suitabilityRgba(score);
-    const px = i * 4;
     img.data[px] = r;
     img.data[px + 1] = g;
     img.data[px + 2] = b;
@@ -494,33 +508,35 @@ export function paintSuitabilityHeatmap(
 }
 
 /**
- * Ocean/sunset openness colormap: faint inland → sky → teal → green (open wedge).
- * Higher alpha than suitability mid-tones so the layer reads as a real overlay.
+ * Ocean/sunset openness colormap: blocked (dark slate, still visible) →
+ * usable teal → open green. Low scores stay opaque so every analyzed address
+ * reads on the map — we do not hide blocked lots or wash them into neighbors.
  */
 export function oceanViewshedRgba(
   score: number,
 ): [number, number, number, number] {
   const t = clamp(score / 100, 0, 1);
-  const a = Math.round(clamp((t - 0.05) / 0.7, 0, 1) * 225);
+  // Blocked lots: visible dark slate; open wedge: stronger teal/green
+  const a = Math.round(95 + t * 130);
 
   let r: number;
   let g: number;
   let b: number;
   if (t < 0.35) {
     const u = t / 0.35;
-    r = Math.round(90 + u * 40);
-    g = Math.round(110 + u * 50);
-    b = Math.round(130 + u * 40);
+    r = Math.round(55 + u * 55);
+    g = Math.round(65 + u * 70);
+    b = Math.round(78 + u * 55);
   } else if (t < 0.6) {
     const u = (t - 0.35) / 0.25;
-    r = Math.round(130 - u * 50);
-    g = Math.round(160 + u * 20);
-    b = Math.round(170 - u * 40);
+    r = Math.round(110 - u * 40);
+    g = Math.round(135 + u * 35);
+    b = Math.round(133 - u * 25);
   } else {
     const u = (t - 0.6) / 0.4;
-    r = Math.round(80 - u * 69);
-    g = Math.round(180 - u * 40);
-    b = Math.round(130 - u * 50);
+    r = Math.round(70 - u * 59);
+    g = Math.round(170 - u * 30);
+    b = Math.round(108 - u * 40);
   }
   return [r, g, b, a];
 }

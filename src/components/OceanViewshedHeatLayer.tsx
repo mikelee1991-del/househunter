@@ -1,19 +1,19 @@
 import { useMemo } from "react";
-import { CircleMarker, ImageOverlay, Polygon, Tooltip } from "react-leaflet";
+import { CircleMarker, Polygon, Tooltip } from "react-leaflet";
 import {
   SUNSET_OCEAN_CONE_CENTER_DEG,
   SUNSET_OCEAN_CONE_HALF_DEG,
 } from "../lib/oceanViewshed";
-import {
-  oceanViewshedRgba,
-  paintOceanViewshedHeatmap,
-} from "../lib/suitabilityHeatmap";
+import { oceanViewshedRgba } from "../lib/suitabilityHeatmap";
 import type { Listing } from "../types";
 
-/** Homes with a real ocean/sunset wedge */
-const MIN_VIEW_SCORE = 35;
-/** Strong enough to draw a directional fan */
+/** Short sunset fans only for strong clear wedges */
 const MIN_WEDGE_SCORE = 60;
+/**
+ * Include every lot with a GIS viewshed inside this coast distance.
+ * Farther inland stays off the ocean layer (score already 0 / too-far).
+ */
+const MAX_COAST_KM = 8;
 
 function destination(
   lat: number,
@@ -43,6 +43,11 @@ function scoreFill(score: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
+function isPlaceholderSummary(summary: string | undefined): boolean {
+  const s = summary || "";
+  return /unavailable|pending rebake/i.test(s);
+}
+
 type Wedge = {
   id: string;
   score: number;
@@ -54,8 +59,9 @@ function strongWedges(listings: Listing[]): Wedge[] {
   for (const l of listings) {
     const ov = l.analysis?.oceanViewshed;
     if (!ov || ov.score100 < MIN_WEDGE_SCORE) continue;
-    const reachKm = 0.35 + (ov.score100 / 100) * 0.55;
-    const half = SUNSET_OCEAN_CONE_HALF_DEG * 0.45;
+    if (isPlaceholderSummary(ov.summary)) continue;
+    const reachKm = 0.28 + (ov.score100 / 100) * 0.45;
+    const half = SUNSET_OCEAN_CONE_HALF_DEG * 0.4;
     const left = destination(
       l.lat,
       l.lng,
@@ -66,7 +72,7 @@ function strongWedges(listings: Listing[]): Wedge[] {
       l.lat,
       l.lng,
       SUNSET_OCEAN_CONE_CENTER_DEG,
-      reachKm * 1.08,
+      reachKm * 1.06,
     );
     const right = destination(
       l.lat,
@@ -89,26 +95,25 @@ interface Props {
 }
 
 /**
- * Ocean/sunset map layer (view = sightline, not “near the beach”):
- * 1) Address-local canvas from lots with a real wedge (≥35)
- * 2) Dot on each of those lots (stable at all zooms)
- * 3) Short sunset fan on strong scores (≥60)
+ * GIS ocean/sunset overlays on every analyzed coastal address (matches or not):
+ * 1) Continuous coastal wash comes from ContinuousMetricHeatLayer
+ * 2) Dot on each coastal lot colored by DEM+building LOS score (blocked = dark)
+ * 3) Short sunset fan only on strong clear wedges (≥60)
  *
- * Blocked lots stay dark — a Strand 100 does not light up the walled-off
- * second-row house behind it.
+ * Address dots stay lot-accurate — a Strand 100 does not light the blocked lot behind it.
  */
 export function OceanViewshedHeatLayer({ enabled, listings }: Props) {
-  const viewLots = useMemo(() => {
+  const coastalLots = useMemo(() => {
     if (!enabled) return [];
-    return listings.filter(
-      (l) => (l.analysis?.oceanViewshed?.score100 ?? 0) >= MIN_VIEW_SCORE,
-    );
+    return listings.filter((l) => {
+      const ov = l.analysis?.oceanViewshed;
+      if (!ov) return false;
+      const coast = ov.nearestCoastKm ?? 99;
+      if (coast > MAX_COAST_KM) return false;
+      // Still show placeholders as dark dots so gaps are visible during rebake
+      return true;
+    });
   }, [enabled, listings]);
-
-  const raster = useMemo(() => {
-    if (!enabled || !viewLots.length) return null;
-    return paintOceanViewshedHeatmap(viewLots, 480, 360);
-  }, [enabled, viewLots]);
 
   const wedges = useMemo(
     () => (enabled ? strongWedges(listings) : []),
@@ -119,15 +124,6 @@ export function OceanViewshedHeatLayer({ enabled, listings }: Props) {
 
   return (
     <>
-      {raster?.url && (
-        <ImageOverlay
-          url={raster.url}
-          bounds={raster.bounds}
-          opacity={0.7}
-          zIndex={350}
-          interactive={false}
-        />
-      )}
       {wedges.map((w) => (
         <Polygon
           key={`owedge-${w.id}`}
@@ -135,31 +131,46 @@ export function OceanViewshedHeatLayer({ enabled, listings }: Props) {
           pathOptions={{
             color: w.score >= 80 ? "#0b6e4f" : "#2a9d8f",
             fillColor: w.score >= 80 ? "#0b6e4f" : "#2a9d8f",
-            fillOpacity: 0.14 + Math.min(0.16, (w.score - 60) / 250),
-            weight: 1.25,
-            opacity: 0.55,
+            fillOpacity: 0.12 + Math.min(0.14, (w.score - 60) / 280),
+            weight: 1.1,
+            opacity: 0.5,
           }}
         />
       ))}
-      {viewLots.map((l) => {
-        const score = l.analysis!.oceanViewshed!.score100;
+      {coastalLots.map((l) => {
+        const ov = l.analysis!.oceanViewshed!;
+        const score = ov.score100;
+        const placeholder = isPlaceholderSummary(ov.summary);
+        const radius =
+          score >= 60 ? 8 : score >= 35 ? 6.5 : score > 0 ? 5.5 : 4.5;
         return (
           <CircleMarker
             key={`odot-${l.id}`}
             center={[l.lat, l.lng]}
-            radius={score >= 60 ? 9 : 6}
+            radius={radius}
             pathOptions={{
-              color: "#0b3d2e",
+              color: placeholder ? "#5a6570" : "#1a2a28",
               weight: 1,
-              fillColor: scoreFill(score),
-              fillOpacity: 0.55 + Math.min(0.35, score / 200),
-              opacity: 0.75,
+              fillColor: placeholder ? "#6b7680" : scoreFill(score),
+              fillOpacity: placeholder
+                ? 0.35
+                : 0.5 + Math.min(0.4, score / 220),
+              opacity: 0.7,
+              dashArray: placeholder ? "2 3" : undefined,
             }}
           >
             <Tooltip direction="top" offset={[0, -4]}>
               {l.address}
               <br />
-              Ocean/sunset {score}/100
+              {placeholder
+                ? "Ocean/sunset — GIS pending"
+                : `Ocean/sunset ${score}/100`}
+              {!placeholder && ov.summary ? (
+                <>
+                  <br />
+                  {ov.summary.replace(/^Ocean viewshed\s*/i, "")}
+                </>
+              ) : null}
             </Tooltip>
           </CircleMarker>
         );

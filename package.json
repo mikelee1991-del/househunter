@@ -14,6 +14,7 @@
     "ingest:refresh": "node scripts/refresh-mbc-market.mjs",
     "ingest:verify": "node scripts/verify-listings-sereno.mjs",
     "ingest:sereno": "node scripts/scrape-sereno-areas.mjs",
+    "ingest:sereno-stubs": "SERENO_ENRICH_STUBS_ONLY=1 node scripts/scrape-sereno-areas.mjs",
     "ingest:status": "node scripts/sync-sereno-status.mjs",
     "ingest:condition": "tsx scripts/enrich-listing-condition.mts",
     "ingest:air": "node scripts/enrich-listing-air.mjs",

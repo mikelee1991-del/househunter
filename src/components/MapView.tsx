@@ -23,9 +23,10 @@ import {
 } from "../lib/mapMetrics";
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { ParameterScoreChart } from "./ParameterScoreChart";
-import { AddressMetricHeatLayer } from "./AddressMetricHeatLayer";
+import { ContinuousMetricHeatLayer } from "./ContinuousMetricHeatLayer";
 import { OceanViewshedHeatLayer } from "./OceanViewshedHeatLayer";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
+import type { AreaMetricId } from "../lib/metricAreaHeatmap";
 
 const NOISE_COLORS: Record<number, string> = {
   65: "#f0c92955",
@@ -38,7 +39,17 @@ function FitToHomes({ listings }: { listings: ScoredListing[] }) {
   const key = listings.map((l) => l.id).join("|");
   useEffect(() => {
     if (!listings.length) return;
-    const pts = listings.map((l) => [l.lat, l.lng] as [number, number]);
+    // Ignore geocode disasters / far outliers so the South Bay overlay fills the view
+    const pts = listings
+      .filter(
+        (l) =>
+          l.lat >= 33.65 &&
+          l.lat <= 34.15 &&
+          l.lng >= -118.65 &&
+          l.lng <= -118.15,
+      )
+      .map((l) => [l.lat, l.lng] as [number, number]);
+    if (!pts.length) return;
     map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 13 });
     // key captures listing set identity without depending on array ref churn
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,10 +186,13 @@ export function MapView({
   const showSuitability = metricLayer === "suitability";
   const showNoise = metricLayer === "noise";
   const showOcean = metricLayer === "ocean";
-  const showAddressHeat =
-    metricLayer !== "off" &&
-    metricLayer !== "suitability" &&
-    metricLayer !== "ocean";
+  const showAreaMetric =
+    metricLayer === "safety" ||
+    metricLayer === "air" ||
+    metricLayer === "walk" ||
+    metricLayer === "noise" ||
+    metricLayer === "condition" ||
+    metricLayer === "ocean";
 
   return (
     <MapContainer
@@ -204,7 +218,7 @@ export function MapView({
       <FitToHomes listings={listings} />
       <FocusSelected listing={selected} />
 
-      {/* Best areas: continuous location model (background) + address halos */}
+      {/* Best areas: continuous location model across the region */}
       <SuitabilityHeatLayer
         enabled={showSuitability}
         criteria={criteria}
@@ -214,18 +228,19 @@ export function MapView({
         safetyTracts={safetyTracts}
         airTracts={airTracts}
       />
-      <AddressMetricHeatLayer
-        enabled={showSuitability}
-        metric="suitability"
+
+      {/* Continuous area washes — any location, clipped to isochrone union */}
+      <ContinuousMetricHeatLayer
+        enabled={showAreaMetric}
+        metric={metricLayer as AreaMetricId}
         listings={allListings}
+        anchors={anchors}
+        isochrones={isochrones}
+        safetyTracts={safetyTracts}
+        airTracts={airTracts}
       />
 
-      {/* Per-metric: lot-scale halos (ocean uses dedicated wedge layer) */}
-      <AddressMetricHeatLayer
-        enabled={showAddressHeat}
-        metric={metricLayer}
-        listings={allListings}
-      />
+      {/* Ocean listing GIS dots/fans on top of continuous ocean wash */}
       <OceanViewshedHeatLayer enabled={showOcean} listings={allListings} />
 
       {showNoise &&

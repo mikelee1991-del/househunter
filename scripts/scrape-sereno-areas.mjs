@@ -17,6 +17,7 @@
  *   INGEST_MIN_PRICE   default 500000
  *   INGEST_MAX_PRICE   default 12000000
  *   SERENO_SKIP_ENRICH=1
+ *   SERENO_ENRICH_STUBS_ONLY=1  skip search; detail-enrich thin rows in listings.json
  *   SERENO_ZIPS_ONLY=1     skip neighborhood queries (debug)
  *   SERENO_SKIP_ZIPS=1     skip zip pass
  */
@@ -165,6 +166,15 @@ const ZIPS = [
   "90230", // Culver City
   "90232", // Culver City
   "90405", // Santa Monica south edge
+  "90401", // Santa Monica downtown
+  "90402", // Santa Monica north
+  "90403", // Santa Monica
+  "90404", // Santa Monica mid-city
+  "90025", // West LA / Sawtelle edge
+  "90064", // Rancho Park / Cheviot
+  "90034", // Palms
+  "90056", // Ladera Heights / View Park
+  "90272", // Pacific Palisades
   // Inland South Bay
   "90250", // Hawthorne
   "90260", // Lawndale
@@ -249,6 +259,10 @@ function normalizeNeighborhood(city, zip, fallback) {
   if (/carson/i.test(c)) return "Carson";
   if (/inglewood/i.test(c)) return "Inglewood";
   if (/lennox/i.test(c)) return "Lennox";
+  if (/santa monica/i.test(c)) return "Santa Monica";
+  if (/pacific palisades/i.test(c)) return "Pacific Palisades";
+  if (/ladera/i.test(c)) return "Ladera Heights";
+  if (/palms/i.test(c)) return "Palms";
   if (/los angeles/i.test(c)) {
     if (zip === "90045") return "Westchester";
     if (zip === "90094") return "Playa Vista";
@@ -257,6 +271,10 @@ function normalizeNeighborhood(city, zip, fallback) {
     if (zip === "90066") return "Mar Vista";
     if (zip === "90731" || zip === "90732") return "San Pedro";
     if (zip === "90744") return "Wilmington";
+    if (zip === "90034") return "Palms";
+    if (zip === "90056") return "Ladera Heights";
+    if (zip === "90272") return "Pacific Palisades";
+    if (zip === "90025" || zip === "90064") return "West Los Angeles";
     if (fallback) return fallback;
     return "Los Angeles";
   }
@@ -540,6 +558,15 @@ function zipHint(zip) {
     "90230": "Culver City",
     "90232": "Culver City",
     "90405": "Santa Monica",
+    "90401": "Santa Monica",
+    "90402": "Santa Monica",
+    "90403": "Santa Monica",
+    "90404": "Santa Monica",
+    "90025": "West Los Angeles",
+    "90064": "West Los Angeles",
+    "90034": "Palms",
+    "90056": "Ladera Heights",
+    "90272": "Pacific Palisades",
     "90250": "Hawthorne",
     "90260": "Lawndale",
     "90247": "Gardena",
@@ -554,7 +581,74 @@ function zipHint(zip) {
   return map[zip] || null;
 }
 
+function isSearchStub(listing) {
+  const d = String(listing.description || "");
+  return (
+    /^(sfr|condo|townhouse|multi|other) in /i.test(d) || d.trim().length < 40
+  );
+}
+
+async function enrichListingRow(row) {
+  const html = await fetchDetail(row.sourceUrl);
+  if (!html) return false;
+  const extra = parseGarageOutdoor(html);
+  row.garageSpaces = extra.garageSpaces;
+  row.outdoorSpace = extra.outdoorSpace;
+  row.outdoorTypes = extra.outdoorTypes;
+  if (extra.description) row.description = extra.description;
+  const ocean = /ocean|catalina|pacific|sunset view|water view|strand/i.test(
+    `${row.description} ${row.address}`,
+  );
+  row.oceanView = ocean;
+  row.oceanViewConfidence = ocean ? "inferred" : "unknown";
+  const ask = extractAskPrice(html, {
+    minPrice: MIN_PRICE,
+    maxPrice: MAX_PRICE,
+  });
+  const schema = Number(html.match(/"price"\s*:\s*(\d{6,})/)?.[1]) || 0;
+  if (schema >= MIN_PRICE && schema <= MAX_PRICE) row.price = schema;
+  else if (ask.price >= MIN_PRICE) row.price = ask.price;
+  row.updatedAt = new Date().toISOString();
+  return true;
+}
+
+/** Detail-enrich thin search-only stubs already in listings.json (no Sereno search). */
+async function enrichStubsOnly() {
+  if (!existsSync(outPath)) {
+    throw new Error(`Missing ${outPath}`);
+  }
+  const data = JSON.parse(readFileSync(outPath, "utf8"));
+  const listings = data.listings || [];
+  const stubs = listings.filter(isSearchStub);
+  console.log(
+    `SERENO_ENRICH_STUBS_ONLY: enriching ${stubs.length}/${listings.length} stub listings…`,
+  );
+  let ok = 0;
+  for (let i = 0; i < stubs.length; i++) {
+    const row = stubs[i];
+    try {
+      if (await enrichListingRow(row)) ok += 1;
+    } catch (e) {
+      console.warn(`  enrich fail ${row.address}: ${e.message}`);
+    }
+    if ((i + 1) % 25 === 0 || i === stubs.length - 1) {
+      console.log(`  enriched ${i + 1}/${stubs.length} (ok ${ok})`);
+      data.generatedAt = new Date().toISOString();
+      writeFileSync(outPath, JSON.stringify(data, null, 2) + "\n");
+    }
+    await sleep(220);
+  }
+  data.generatedAt = new Date().toISOString();
+  writeFileSync(outPath, JSON.stringify(data, null, 2) + "\n");
+  console.log(`Stub enrich done: ${ok}/${stubs.length}`);
+}
+
 async function main() {
+  if (process.env.SERENO_ENRICH_STUBS_ONLY === "1") {
+    await enrichStubsOnly();
+    return;
+  }
+
   console.log(
     `Sereno metro ingest ($${MIN_PRICE.toLocaleString()}–$${MAX_PRICE.toLocaleString()})…`,
   );
@@ -647,29 +741,7 @@ async function main() {
     for (let i = 0; i < mapped.length; i++) {
       const row = mapped[i];
       try {
-        const html = await fetchDetail(row.sourceUrl);
-        if (html) {
-          const extra = parseGarageOutdoor(html);
-          row.garageSpaces = extra.garageSpaces;
-          row.outdoorSpace = extra.outdoorSpace;
-          row.outdoorTypes = extra.outdoorTypes;
-          if (extra.description) row.description = extra.description;
-          const ocean =
-            /ocean|catalina|pacific|sunset view|water view|strand/i.test(
-              `${row.description} ${row.address}`,
-            );
-          row.oceanView = ocean;
-          row.oceanViewConfidence = ocean ? "inferred" : "unknown";
-          const ask = extractAskPrice(html, {
-            minPrice: MIN_PRICE,
-            maxPrice: MAX_PRICE,
-          });
-          const schema =
-            Number(html.match(/"price"\s*:\s*(\d{6,})/)?.[1]) || 0;
-          if (schema >= MIN_PRICE && schema <= MAX_PRICE) row.price = schema;
-          else if (ask.price >= MIN_PRICE) row.price = ask.price;
-          enriched += 1;
-        }
+        if (await enrichListingRow(row)) enriched += 1;
       } catch (e) {
         console.warn(`  enrich fail ${row.address}: ${e.message}`);
       }

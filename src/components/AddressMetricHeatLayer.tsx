@@ -34,9 +34,15 @@ function samplesForMetric(
     let score: number | null = null;
     switch (metric) {
       case "ocean": {
-        const v = l.analysis?.oceanViewshed?.score100;
-        if (typeof v === "number") score = v;
-        else if (l.oceanView) score = 70;
+        const ov = l.analysis?.oceanViewshed;
+        if (!ov || typeof ov.score100 !== "number") break;
+        // Skip inland placeholders and failed GIS so we don't paint false zeros
+        // as “blocked” across the whole metro.
+        const coast = ov.nearestCoastKm ?? 99;
+        const summary = ov.summary || "";
+        if (coast > 8) break;
+        if (/too far inland/i.test(summary)) break;
+        score = ov.score100;
         break;
       }
       case "noise":

@@ -26,14 +26,18 @@ function fromListing(l: Listing): OceanViewshedResult | null {
   };
 }
 
+function needsLiveGis(l: Listing): boolean {
+  const ov = l.analysis?.oceanViewshed;
+  if (!ov) return true;
+  return /unavailable|pending rebake/i.test(ov.summary || "");
+}
+
 export function useOceanViewshed(listings: Listing[], enabled = true) {
   const [byId, setById] = useState<Record<string, OceanViewshedResult>>({});
   const [progress, setProgress] = useState("");
   const [ready, setReady] = useState(false);
 
   const signature = listings.map((l) => `${l.id}:${l.lat}:${l.lng}`).join("|");
-  const allPrecomputed =
-    listings.length > 0 && listings.every((l) => !!l.analysis?.oceanViewshed);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,24 +51,35 @@ export function useOceanViewshed(listings: Listing[], enabled = true) {
     const seed: Record<string, OceanViewshedResult> = {};
     for (const l of listings) {
       const pre = fromListing(l);
-      if (pre) seed[l.id] = pre;
+      if (pre && !needsLiveGis(l)) seed[l.id] = pre;
+      else if (pre) seed[l.id] = pre; // show placeholder until live GIS returns
     }
     if (Object.keys(seed).length) setById(seed);
 
-    if (allPrecomputed) {
+    const need = listings.filter(needsLiveGis);
+    if (!need.length) {
       setReady(true);
       setProgress("");
       return;
     }
 
-    setReady(false);
-    setProgress("Running ocean/sunset viewshed (DEM + buildings)…");
+    // Cap live browser GIS so we don't hammer DEM/Overpass for hundreds of gaps
+    const liveCap = 40;
+    const prioritized = [...need].sort((a, b) => {
+      const ca = a.analysis?.oceanViewshed?.nearestCoastKm ?? 99;
+      const cb = b.analysis?.oceanViewshed?.nearestCoastKm ?? 99;
+      return ca - cb;
+    }).slice(0, liveCap);
 
-    const need = listings.filter((l) => !l.analysis?.oceanViewshed);
+    setReady(false);
+    setProgress(
+      `Ocean GIS for ${prioritized.length} coastal lots (nearest first)…`,
+    );
+
     (async () => {
       try {
         const results = await analyzeOceanViewshedBatch(
-          need.map((l) => ({
+          prioritized.map((l) => ({
             id: l.id,
             lat: l.lat,
             lng: l.lng,
@@ -92,7 +107,7 @@ export function useOceanViewshed(listings: Listing[], enabled = true) {
     return () => {
       cancelled = true;
     };
-  }, [signature, enabled, listings, allPrecomputed]);
+  }, [signature, enabled, listings]);
 
   return { byId, progress, ready };
 }

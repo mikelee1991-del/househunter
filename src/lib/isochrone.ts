@@ -92,6 +92,30 @@ export function pointInIsochrone(
   return exteriorRings(feature).some((ring) => pointInRing(lng, lat, ring));
 }
 
+/** True if the point sits inside the union of any ready isochrone. */
+export function pointInAnyIsochrone(
+  lat: number,
+  lng: number,
+  anchors: { id: AnchorId }[],
+  isochrones: IsochroneMap,
+): boolean {
+  const ready = anchors.filter((a) => !!isochrones[a.id]);
+  if (!ready.length) return true;
+  return ready.some((a) => pointInIsochrone(lat, lng, isochrones[a.id]));
+}
+
+/** True when every ready isochrone contains the point (intersection). */
+export function pointInAllIsochrones(
+  lat: number,
+  lng: number,
+  anchors: { id: AnchorId }[],
+  isochrones: IsochroneMap,
+): boolean {
+  const ready = anchors.filter((a) => !!isochrones[a.id]);
+  if (!ready.length) return true;
+  return ready.every((a) => pointInIsochrone(lat, lng, isochrones[a.id]));
+}
+
 function asPolygonFeature(
   feature: PolygonFeature,
   anchor: Anchor,
