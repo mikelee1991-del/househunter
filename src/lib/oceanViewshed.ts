@@ -425,22 +425,31 @@ function buildingBlocksRay(
 ): boolean {
   const totalKm = haversineKm(lat0, lng0, lat1, lng1);
   if (totalKm < 0.05) return false;
-  // Bluff / beach edge looking straight onto water — neighbors don't sit in front
-  if (coastKm < 0.4) return false;
+  // Strand / bluff lip — looking onto water; don't zero a whole street over
+  // a hard 0.4 km cliff (that made neighbors look randomly scored).
+  if (coastKm < 0.28) return false;
   const brgTarget = bearingDeg(lat0, lng0, lat1, lng1);
-  // Don't invent occlusion past the shoreline / over water
-  const maxOccKm = Math.max(0.12, coastKm + 0.05);
-  // On hills/bluffs, only near-field peers share our ground height; farther
-  // buildings sit downhill and must not be modeled at viewerGround.
-  const peerKm = viewerGround >= 35 ? 0.22 : maxOccKm;
+  // Near-coast flats: only very near on-ray peers. Hills: short peer window.
+  // Inland flats: up to the shoreline approach.
+  let peerKm: number;
+  if (viewerGround >= 35) {
+    peerKm = 0.2;
+  } else if (coastKm < 0.9) {
+    // Ramp 0.28→0.9 km: peer window ~55 m → 120 m (second-row glimpses survive)
+    peerKm = 0.055 + ((coastKm - 0.28) / 0.62) * 0.065;
+  } else {
+    peerKm = Math.min(0.55, coastKm * 0.35);
+  }
 
   for (const b of buildings) {
     const dViewer = haversineKm(lat0, lng0, b.lat, b.lng);
     if (dViewer < 0.035 || dViewer > peerKm) continue;
     if (dViewer > totalKm) continue;
+    // Near the sand, ignore low sheds / single-story fluff — need a real wall
+    if (coastKm < 0.75 && b.heightM < 8) continue;
     const brgB = bearingDeg(lat0, lng0, b.lat, b.lng);
     // Must sit nearly on this ray (not just "somewhere in the wedge")
-    if (angleDelta(brgTarget, brgB) > 7) continue;
+    if (angleDelta(brgTarget, brgB) > 5) continue;
 
     const t = Math.min(0.98, Math.max(0.02, dViewer / totalKm));
     const losElev = viewerElev + (targetElev - viewerElev) * t;
@@ -465,9 +474,9 @@ function syntheticUrbanBlocksRay(
 ): boolean {
   // Hills / PV bluffs: DEM handles terrain; don't invent a rooftop city
   if (viewerGround >= 35) return false;
-  // On the sand / first beach block: don't invent obstacles over water approach
-  if (coastKm < 0.45) return false;
-  const maxBlockKm = Math.min(coastKm - 0.05, 1.5);
+  // Keep the first ~2–3 beach blocks free of invented rooftops
+  if (coastKm < 0.85) return false;
+  const maxBlockKm = Math.min(coastKm - 0.08, 1.5);
   if (maxBlockKm < 0.08) return false;
 
   for (let i = 0; i < samples.length; i++) {

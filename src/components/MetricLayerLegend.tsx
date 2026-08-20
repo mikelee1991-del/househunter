@@ -122,11 +122,11 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "ocean") {
     return (
       <div className="safety-legend">
-        <strong>Ocean / sunset wedge</strong>
+        <strong>Ocean / sunset openness</strong>
         <p>
-          Directional sunset fans on strong scores (≥60). Soft halos only for
-          real wedges (≥35). Inland flat blocks stay dark — DEM + urban canopy
-          proxy, not tree survey.
+          Soft halo at each listing from DEM line-of-sight in the sunset band.
+          Bright corridor = beach / open bluff; dark = blocked. Not a random
+          subset — every scored home is painted (faint when low).
         </p>
         <ul>
           <li>
