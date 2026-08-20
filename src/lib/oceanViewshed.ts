@@ -94,9 +94,15 @@ const OVERPASS_HEADERS: Record<string, string> = {
 };
 
 const elevCache = new Map<string, number>();
+/** Cache Overpass buildings by ~400 m grid cell (sunset wedge filter still applied). */
+const buildingCellCache = new Map<string, OsmBuilding[]>();
 
 function elevKey(lat: number, lng: number) {
   return `${lat.toFixed(5)},${lng.toFixed(5)}`;
+}
+
+function buildingCellKey(lat: number, lng: number) {
+  return `${lat.toFixed(3)},${lng.toFixed(3)}`;
 }
 
 async function sleep(ms: number) {
@@ -364,6 +370,17 @@ async function fetchBuildingsInWedge(
   coneCenterDeg = SUNSET_OCEAN_CONE_CENTER_DEG,
   radiusM = 900,
 ): Promise<OsmBuilding[]> {
+  const cell = buildingCellKey(lat, lng);
+  const cached = buildingCellCache.get(cell);
+  if (cached) {
+    return cached.filter((b) => {
+      const dist = haversineKm(lat, lng, b.lat, b.lng) * 1000;
+      if (dist < 25 || dist > radiusM) return false;
+      const brg = bearingDeg(lat, lng, b.lat, b.lng);
+      return angleDelta(brg, coneCenterDeg) <= SUNSET_OCEAN_CONE_HALF_DEG;
+    });
+  }
+
   // Bounding box around viewer (Overpass), then filter to sunset/ocean wedge
   const pad = radiusM / 111_320;
   const padLng = pad / Math.cos((lat * Math.PI) / 180);
@@ -399,22 +416,24 @@ async function fetchBuildingsInWedge(
         }[];
       };
 
-      const buildings: OsmBuilding[] = [];
+      const cellBuildings: OsmBuilding[] = [];
       for (const el of json.elements ?? []) {
         const blat = el.center?.lat ?? el.lat;
         const blng = el.center?.lon ?? el.lon;
         if (blat == null || blng == null) continue;
         const dist = haversineKm(lat, lng, blat, blng) * 1000;
-        if (dist < 25 || dist > radiusM) continue;
-        const brg = bearingDeg(lat, lng, blat, blng);
-        if (angleDelta(brg, coneCenterDeg) > SUNSET_OCEAN_CONE_HALF_DEG) {
-          continue;
-        }
+        if (dist > radiusM * 1.05) continue;
         const heightM = estimateBuildingHeight(el.tags ?? {});
         if (heightM < 5) continue;
-        buildings.push({ lat: blat, lng: blng, heightM });
+        cellBuildings.push({ lat: blat, lng: blng, heightM });
       }
-      return buildings;
+      buildingCellCache.set(cell, cellBuildings);
+      return cellBuildings.filter((b) => {
+        const dist = haversineKm(lat, lng, b.lat, b.lng) * 1000;
+        if (dist < 25 || dist > radiusM) return false;
+        const brg = bearingDeg(lat, lng, b.lat, b.lng);
+        return angleDelta(brg, coneCenterDeg) <= SUNSET_OCEAN_CONE_HALF_DEG;
+      });
     } catch {
       /* try next mirror */
     }

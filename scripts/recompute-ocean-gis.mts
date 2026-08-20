@@ -41,15 +41,24 @@ function isGap(summary: string | undefined): boolean {
 
 type Job = { idx: number; coast: number };
 
-const jobs: Job[] = [];
-for (let i = 0; i < data.listings.length; i++) {
-  const l = data.listings[i];
-  const coast = coastKm(l.lat, l.lng);
-  if (coast > maxCoast) continue;
-  const ov = l.analysis?.oceanViewshed;
-  if (gapsOnly && !isGap(ov?.summary)) continue;
-  jobs.push({ idx: i, coast });
-}
+  const jobs: Job[] = [];
+  for (let i = 0; i < data.listings.length; i++) {
+    const l = data.listings[i];
+    const coast = coastKm(l.lat, l.lng);
+    if (coast > maxCoast) continue;
+    const ov = l.analysis?.oceanViewshed;
+    if (gapsOnly && !isGap(ov?.summary)) continue;
+    // Skip lots that already have a real GIS summary (resume-friendly)
+    if (
+      !gapsOnly &&
+      ov &&
+      !isGap(ov.summary) &&
+      /clear rays/i.test(ov.summary || "")
+    ) {
+      continue;
+    }
+    jobs.push({ idx: i, coast });
+  }
 
 jobs.sort((a, b) => a.coast - b.coast);
 const selected = limit > 0 ? jobs.slice(0, limit) : jobs;
@@ -124,7 +133,7 @@ async function worker() {
       data.generatedAt = new Date().toISOString();
       writeFileSync(path, JSON.stringify(data, null, 2) + "\n");
     }
-    await sleep(150);
+    await sleep(40);
   }
 }
 
