@@ -22,31 +22,31 @@ function clamp(n: number, lo: number, hi: number) {
 
 /**
  * EPA walk 1–20 → rgba. Higher walk = cooler blue-green; lower = warm sand.
- * Opaque enough that the whole metro reads as a continuous surface.
+ * Strong alpha so the continuous wash reads clearly on the light basemap.
  */
 export function walkIndexRgba(
   walkIndex: number,
 ): [number, number, number, number] {
   const t = clamp((walkIndex - 1) / 19, 0, 1);
-  const a = Math.round(150 + t * 70);
+  const a = Math.round(175 + t * 55);
   let r: number;
   let g: number;
   let b: number;
   if (t < 0.35) {
     const u = t / 0.35;
-    r = Math.round(180 - u * 40);
-    g = Math.round(140 - u * 20);
-    b = Math.round(90 + u * 20);
+    r = Math.round(170 - u * 30);
+    g = Math.round(130 - u * 15);
+    b = Math.round(85 + u * 25);
   } else if (t < 0.65) {
     const u = (t - 0.35) / 0.3;
-    r = Math.round(140 - u * 70);
-    g = Math.round(120 + u * 40);
-    b = Math.round(110 + u * 20);
+    r = Math.round(140 - u * 80);
+    g = Math.round(115 + u * 50);
+    b = Math.round(110 + u * 30);
   } else {
     const u = (t - 0.65) / 0.35;
-    r = Math.round(70 - u * 40);
-    g = Math.round(160 - u * 30);
-    b = Math.round(130 + u * 40);
+    r = Math.round(60 - u * 30);
+    g = Math.round(165 - u * 35);
+    b = Math.round(140 + u * 45);
   }
   return [r, g, b, a];
 }
