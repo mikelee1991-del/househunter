@@ -6,6 +6,7 @@ import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { Anchor, AnchorId, Criteria, Listing } from "../types";
 import { estimateDriveMinutes, haversineKm } from "./geo";
 import {
+  pointInAnyIsochrone,
   pointInIsochrone,
   pointInRing,
   type IsochroneMap,
@@ -467,14 +468,25 @@ export function paintSuitabilityHeatmap(
   let peakSum = 0;
   let peakN = 0;
 
+  const clipUnion =
+    isochrones && anchors.some((a) => !!isochrones[a.id])
+      ? (lat: number, lng: number) =>
+          pointInAnyIsochrone(lat, lng, anchors, isochrones!)
+      : null;
+
   for (let i = 0; i < cells.length; i++) {
-    const score = scoreHeatmapCell(cells[i], criteria, anchors, isochrones);
+    const cell = cells[i];
+    const px = i * 4;
+    if (clipUnion && !clipUnion(cell.lat, cell.lng)) {
+      img.data[px + 3] = 0;
+      continue;
+    }
+    const score = scoreHeatmapCell(cell, criteria, anchors, isochrones);
     if (score >= 55) {
       peakSum += score;
       peakN += 1;
     }
     const [r, g, b, a] = suitabilityRgba(score);
-    const px = i * 4;
     img.data[px] = r;
     img.data[px + 1] = g;
     img.data[px + 2] = b;

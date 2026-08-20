@@ -23,10 +23,10 @@ import {
 } from "../lib/mapMetrics";
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { ParameterScoreChart } from "./ParameterScoreChart";
-import { AddressMetricHeatLayer } from "./AddressMetricHeatLayer";
+import { ContinuousMetricHeatLayer } from "./ContinuousMetricHeatLayer";
 import { OceanViewshedHeatLayer } from "./OceanViewshedHeatLayer";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
-import { WalkabilityHeatLayer } from "./WalkabilityHeatLayer";
+import type { AreaMetricId } from "../lib/metricAreaHeatmap";
 
 const NOISE_COLORS: Record<number, string> = {
   65: "#f0c92955",
@@ -186,13 +186,13 @@ export function MapView({
   const showSuitability = metricLayer === "suitability";
   const showNoise = metricLayer === "noise";
   const showOcean = metricLayer === "ocean";
-  const showWalk = metricLayer === "walk";
-  // Address spots for per-home metrics. Walk uses a continuous area wash;
-  // suitability has its own wash; ocean uses halos + GIS dots/fans.
-  const showAddressHeat =
-    metricLayer !== "off" &&
-    metricLayer !== "suitability" &&
-    metricLayer !== "walk";
+  const showAreaMetric =
+    metricLayer === "safety" ||
+    metricLayer === "air" ||
+    metricLayer === "walk" ||
+    metricLayer === "noise" ||
+    metricLayer === "condition" ||
+    metricLayer === "ocean";
 
   return (
     <MapContainer
@@ -218,7 +218,7 @@ export function MapView({
       <FitToHomes listings={listings} />
       <FocusSelected listing={selected} />
 
-      {/* Best areas: continuous location model (background) + address halos */}
+      {/* Best areas: continuous location model across the region */}
       <SuitabilityHeatLayer
         enabled={showSuitability}
         criteria={criteria}
@@ -228,21 +228,19 @@ export function MapView({
         safetyTracts={safetyTracts}
         airTracts={airTracts}
       />
-      <AddressMetricHeatLayer
-        enabled={showSuitability}
-        metric="suitability"
+
+      {/* Continuous area washes — any location, clipped to isochrone union */}
+      <ContinuousMetricHeatLayer
+        enabled={showAreaMetric}
+        metric={metricLayer as AreaMetricId}
         listings={allListings}
+        anchors={anchors}
+        isochrones={isochrones}
+        safetyTracts={safetyTracts}
+        airTracts={airTracts}
       />
 
-      {/* Continuous walkability across the metro (not address spots) */}
-      <WalkabilityHeatLayer enabled={showWalk} listings={allListings} />
-
-      {/* Per-metric lot-scale halos — ocean included (full 0–100 GIS scores) */}
-      <AddressMetricHeatLayer
-        enabled={showAddressHeat}
-        metric={metricLayer}
-        listings={allListings}
-      />
+      {/* Ocean listing GIS dots/fans on top of continuous ocean wash */}
       <OceanViewshedHeatLayer enabled={showOcean} listings={allListings} />
 
       {showNoise &&

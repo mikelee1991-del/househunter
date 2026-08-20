@@ -1,10 +1,11 @@
 export function SuitabilityLegend() {
   return (
     <div className="suitability-legend">
-      <strong>Best areas (address + context)</strong>
+      <strong>Best areas (region)</strong>
       <p>
-        Bright halos = each listing’s overall fit (address-local; ~40 m when
-        zoomed in). Faint wash = drive / noise / livability context between homes.
+        Continuous blended fit across the commute-reachable region (union of
+        isochrones) — drive, noise, safety, walk, ocean openness, air. Not
+        limited to for-sale or matching addresses; pins are inventory only.
       </p>
       <div
         className="suitability-legend-ramp"

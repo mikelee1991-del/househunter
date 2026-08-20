@@ -77,10 +77,22 @@ export default function App() {
     progress: viewshedProgress,
   } = useOceanViewshed(listings, true);
   const { data: safetyTracts } = useSafetyTracts(
-    metricLayer === "safety" || metricLayer === "suitability",
+    metricLayer === "safety" ||
+      metricLayer === "air" ||
+      metricLayer === "suitability" ||
+      metricLayer === "walk" ||
+      metricLayer === "condition" ||
+      metricLayer === "ocean" ||
+      metricLayer === "noise",
   );
   const { data: airTracts } = useAirQualityTracts(
-    metricLayer === "air" || metricLayer === "suitability",
+    metricLayer === "air" ||
+      metricLayer === "safety" ||
+      metricLayer === "suitability" ||
+      metricLayer === "walk" ||
+      metricLayer === "condition" ||
+      metricLayer === "ocean" ||
+      metricLayer === "noise",
   );
   const {
     isochrones,

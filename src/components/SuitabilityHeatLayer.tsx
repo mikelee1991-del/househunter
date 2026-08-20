@@ -50,7 +50,7 @@ export function SuitabilityHeatLayer({
     if (!enabled || !base) return null;
     const havePolys =
       deferredAnchors.length > 0 &&
-      deferredAnchors.every((a) => !!deferredIso[a.id]);
+      deferredAnchors.some((a) => !!deferredIso[a.id]);
     return paintSuitabilityHeatmap(
       base,
       deferredCriteria,
@@ -65,7 +65,7 @@ export function SuitabilityHeatLayer({
     <ImageOverlay
       url={raster.url}
       bounds={raster.bounds}
-      opacity={0.22}
+      opacity={0.55}
       zIndex={330}
       interactive={false}
     />

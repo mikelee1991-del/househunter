@@ -95,12 +95,12 @@ interface Props {
 }
 
 /**
- * GIS ocean/sunset layer for every analyzed coastal address (matches or not):
- * 1) Address-local halos come from AddressMetricHeatLayer (full 0–100 range)
+ * GIS ocean/sunset overlays on every analyzed coastal address (matches or not):
+ * 1) Continuous coastal wash comes from ContinuousMetricHeatLayer
  * 2) Dot on each coastal lot colored by DEM+building LOS score (blocked = dark)
  * 3) Short sunset fan only on strong clear wedges (≥60)
  *
- * No neighborhood wash — a Strand 100 does not light the walled-off lot behind it.
+ * Address dots stay lot-accurate — a Strand 100 does not light the blocked lot behind it.
  */
 export function OceanViewshedHeatLayer({ enabled, listings }: Props) {
   const coastalLots = useMemo(() => {
