@@ -122,12 +122,11 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "ocean") {
     return (
       <div className="safety-legend">
-        <strong>Ocean / sunset openness</strong>
+        <strong>Ocean / sunset view</strong>
         <p>
-          Per-address DEM line-of-sight in the sunset band, blocked when a
-          building on the sightline sticks above the eye→ocean ray. Second-row
-          lots behind a full wall score low even if the Strand house in front
-          scores high; hills can clear the same roofs.
+          Dots and fans mark lots with a clear sunset-band sightline (≥35). A
+          house fully blocked by the next roof stays dark even if its neighbor
+          on the Strand scores 100. Hills can clear the same roofs.
         </p>
         <ul>
           <li>
@@ -142,7 +141,7 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
           </li>
           <li>
             <i style={{ background: "#7a9bb0" }} />
-            Mostly blocked
+            Blocked / none
             <span>&lt;35</span>
           </li>
         </ul>

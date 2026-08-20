@@ -147,7 +147,14 @@ export default function App() {
   // Never show over-budget / under-beds / incomplete homes in map or list
   const eligible = scored.filter((l) => !l.coreRejected);
   const matches = eligible.filter((l) => l.flagged);
-  const visible = showFlaggedOnly ? matches : eligible;
+  // Ocean layer: show the full eligible pool so beachfront view homes aren't
+  // hidden by "Matches only" (overlay uses all inventory; pins should too).
+  const visible =
+    metricLayer === "ocean"
+      ? eligible
+      : showFlaggedOnly
+        ? matches
+        : eligible;
   const flaggedCount = matches.length;
   const top = matches[0] ?? eligible[0] ?? scored[0];
   const selected =

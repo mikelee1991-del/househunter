@@ -256,12 +256,19 @@ async function fetchOpenTopoChunk(
 ): Promise<number[]> {
   // Free tier ~1 req/s; max 100 locations
   const locations = batch.map((b) => `${b.lat},${b.lng}`).join("|");
-  const res = await fetch(`${OPENTOPO_URL}?locations=${locations}`);
-  if (!res.ok) throw new Error(`OpenTopoData HTTP ${res.status}`);
-  const json = (await res.json()) as {
-    results?: { elevation: number | null }[];
-  };
-  return (json.results ?? []).map((r) => r.elevation ?? 0);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await fetch(`${OPENTOPO_URL}?locations=${locations}`);
+    if (res.status === 429) {
+      await sleep(1200 * (attempt + 1));
+      continue;
+    }
+    if (!res.ok) throw new Error(`OpenTopoData HTTP ${res.status}`);
+    const json = (await res.json()) as {
+      results?: { elevation: number | null }[];
+    };
+    return (json.results ?? []).map((r) => r.elevation ?? 0);
+  }
+  throw new Error("OpenTopoData HTTP 429");
 }
 
 async function fetchElevations(
@@ -468,8 +475,10 @@ function syntheticUrbanBlocksRay(
   coastKm: number,
 ): boolean {
   if (viewerGround >= 35) return false;
-  if (coastKm < 0.2) return false;
-  const maxBlockKm = Math.min(coastKm - 0.02, 1.6);
+  // Only invent fabric inland of the first beach blocks. Near-shore lots
+  // either have OSM buildings or look onto sand/water — don't fake a wall.
+  if (coastKm < 0.65) return false;
+  const maxBlockKm = Math.min(coastKm - 0.05, 1.6);
   if (maxBlockKm < 0.06) return false;
 
   for (let i = 0; i < samples.length; i++) {

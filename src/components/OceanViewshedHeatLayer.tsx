@@ -1,37 +1,84 @@
-import { useMemo, useState } from "react";
-import { ImageOverlay, useMap, useMapEvents } from "react-leaflet";
+import { useMemo } from "react";
+import { CircleMarker, ImageOverlay, Polygon, Tooltip } from "react-leaflet";
 import {
-  paintAddressHalos,
-  type AddressHeatSample,
-} from "../lib/addressHeatmap";
-import { oceanViewshedRgba } from "../lib/suitabilityHeatmap";
+  SUNSET_OCEAN_CONE_CENTER_DEG,
+  SUNSET_OCEAN_CONE_HALF_DEG,
+} from "../lib/oceanViewshed";
+import {
+  oceanViewshedRgba,
+  paintOceanViewshedHeatmap,
+} from "../lib/suitabilityHeatmap";
 import type { Listing } from "../types";
 
-/**
- * Paint every scored lot (including modest wedges). Alpha already ramps with
- * score in oceanViewshedRgba — no hard “only ≥60 get a fan” cliff that made
- * the map look like random address stickers.
- */
-const MIN_PAINT_SCORE = 12;
-/** Parcel floor when zoomed in */
-const MIN_RADIUS_KM = 0.05;
-/** Cap when zoomed out — still address-centered, overlaps into a corridor */
-const MAX_RADIUS_KM = 0.18;
-const TARGET_PX = 18;
+/** Homes with a real ocean/sunset wedge */
+const MIN_VIEW_SCORE = 35;
+/** Strong enough to draw a directional fan */
+const MIN_WEDGE_SCORE = 60;
 
-function radiusKmForZoom(zoom: number, lat: number): number {
-  const mpp =
-    (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
-  const targetKm = (mpp * TARGET_PX) / 1000;
-  return Math.min(MAX_RADIUS_KM, Math.max(MIN_RADIUS_KM, targetKm));
+function destination(
+  lat: number,
+  lng: number,
+  bearingDeg: number,
+  distKm: number,
+): [number, number] {
+  const R = 6371;
+  const δ = distKm / R;
+  const θ = (bearingDeg * Math.PI) / 180;
+  const φ1 = (lat * Math.PI) / 180;
+  const λ1 = (lng * Math.PI) / 180;
+  const φ2 = Math.asin(
+    Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ),
+  );
+  const λ2 =
+    λ1 +
+    Math.atan2(
+      Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+      Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2),
+    );
+  return [(φ2 * 180) / Math.PI, (λ2 * 180) / Math.PI];
 }
 
-function oceanSamples(listings: Listing[]): AddressHeatSample[] {
-  const out: AddressHeatSample[] = [];
+function scoreFill(score: number): string {
+  const [r, g, b] = oceanViewshedRgba(score);
+  return `rgb(${r},${g},${b})`;
+}
+
+type Wedge = {
+  id: string;
+  score: number;
+  positions: [number, number][];
+};
+
+function strongWedges(listings: Listing[]): Wedge[] {
+  const out: Wedge[] = [];
   for (const l of listings) {
-    const score = l.analysis?.oceanViewshed?.score100;
-    if (typeof score !== "number" || score < MIN_PAINT_SCORE) continue;
-    out.push({ lat: l.lat, lng: l.lng, score });
+    const ov = l.analysis?.oceanViewshed;
+    if (!ov || ov.score100 < MIN_WEDGE_SCORE) continue;
+    const reachKm = 0.35 + (ov.score100 / 100) * 0.55;
+    const half = SUNSET_OCEAN_CONE_HALF_DEG * 0.45;
+    const left = destination(
+      l.lat,
+      l.lng,
+      SUNSET_OCEAN_CONE_CENTER_DEG - half,
+      reachKm,
+    );
+    const mid = destination(
+      l.lat,
+      l.lng,
+      SUNSET_OCEAN_CONE_CENTER_DEG,
+      reachKm * 1.08,
+    );
+    const right = destination(
+      l.lat,
+      l.lng,
+      SUNSET_OCEAN_CONE_CENTER_DEG + half,
+      reachKm,
+    );
+    out.push({
+      id: l.id,
+      score: ov.score100,
+      positions: [[l.lat, l.lng], left, mid, right],
+    });
   }
   return out;
 }
@@ -42,39 +89,81 @@ interface Props {
 }
 
 /**
- * Ocean/sunset overlay as a continuous per-address field: every listing with
- * a meaningful score contributes a soft halo. Beach corridors merge visually;
- * inland zeros stay dark. No sparse per-home sunset polygons.
+ * Ocean/sunset map layer (view = sightline, not “near the beach”):
+ * 1) Address-local canvas from lots with a real wedge (≥35)
+ * 2) Dot on each of those lots (stable at all zooms)
+ * 3) Short sunset fan on strong scores (≥60)
+ *
+ * Blocked lots stay dark — a Strand 100 does not light up the walled-off
+ * second-row house behind it.
  */
 export function OceanViewshedHeatLayer({ enabled, listings }: Props) {
-  const map = useMap();
-  const [zoom, setZoom] = useState(() => map.getZoom());
-  useMapEvents({
-    zoomend: () => setZoom(map.getZoom()),
-  });
-
-  const radiusKm = radiusKmForZoom(zoom, map.getCenter().lat);
+  const viewLots = useMemo(() => {
+    if (!enabled) return [];
+    return listings.filter(
+      (l) => (l.analysis?.oceanViewshed?.score100 ?? 0) >= MIN_VIEW_SCORE,
+    );
+  }, [enabled, listings]);
 
   const raster = useMemo(() => {
-    if (!enabled) return null;
-    const samples = oceanSamples(listings);
-    if (!samples.length) return null;
-    return paintAddressHalos(samples, oceanViewshedRgba, {
-      radiusKm,
-      cols: 720,
-      rows: 540,
-    });
-  }, [enabled, listings, radiusKm]);
+    if (!enabled || !viewLots.length) return null;
+    return paintOceanViewshedHeatmap(viewLots, 480, 360);
+  }, [enabled, viewLots]);
 
-  if (!enabled || !raster?.url) return null;
+  const wedges = useMemo(
+    () => (enabled ? strongWedges(listings) : []),
+    [enabled, listings],
+  );
+
+  if (!enabled) return null;
 
   return (
-    <ImageOverlay
-      url={raster.url}
-      bounds={raster.bounds}
-      opacity={0.9}
-      zIndex={355}
-      interactive={false}
-    />
+    <>
+      {raster?.url && (
+        <ImageOverlay
+          url={raster.url}
+          bounds={raster.bounds}
+          opacity={0.7}
+          zIndex={350}
+          interactive={false}
+        />
+      )}
+      {wedges.map((w) => (
+        <Polygon
+          key={`owedge-${w.id}`}
+          positions={w.positions}
+          pathOptions={{
+            color: w.score >= 80 ? "#0b6e4f" : "#2a9d8f",
+            fillColor: w.score >= 80 ? "#0b6e4f" : "#2a9d8f",
+            fillOpacity: 0.14 + Math.min(0.16, (w.score - 60) / 250),
+            weight: 1.25,
+            opacity: 0.55,
+          }}
+        />
+      ))}
+      {viewLots.map((l) => {
+        const score = l.analysis!.oceanViewshed!.score100;
+        return (
+          <CircleMarker
+            key={`odot-${l.id}`}
+            center={[l.lat, l.lng]}
+            radius={score >= 60 ? 9 : 6}
+            pathOptions={{
+              color: "#0b3d2e",
+              weight: 1,
+              fillColor: scoreFill(score),
+              fillOpacity: 0.55 + Math.min(0.35, score / 200),
+              opacity: 0.75,
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -4]}>
+              {l.address}
+              <br />
+              Ocean/sunset {score}/100
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
+    </>
   );
 }
