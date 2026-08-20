@@ -124,9 +124,10 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
       <div className="safety-legend">
         <strong>Ocean / sunset view</strong>
         <p>
-          Dots and fans mark lots with a clear sunset-band sightline (≥35). A
-          house fully blocked by the next roof stays dark even if its neighbor
-          on the Strand scores 100. Hills can clear the same roofs.
+          GIS sightline toward the Pacific (DEM terrain + OSM buildings) for
+          every coastal address — matches or not. Color is that lot’s clear-ray
+          score; a blocked second-row house stays dark next to a Strand 100.
+          Fans mark strong clear wedges only.
         </p>
         <ul>
           <li>
@@ -140,8 +141,8 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
             <span>35–60</span>
           </li>
           <li>
-            <i style={{ background: "#7a9bb0" }} />
-            Blocked / none
+            <i style={{ background: "#4a5560" }} />
+            Blocked / weak
             <span>&lt;35</span>
           </li>
         </ul>

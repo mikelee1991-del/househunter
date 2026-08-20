@@ -14,8 +14,9 @@ import {
 /** South Bay coverage for the suitability raster (lat/lng). */
 export const SUITABILITY_BOUNDS = {
   south: 33.705,
-  west: -118.485,
-  north: 34.02,
+  /** West enough for Santa Monica / Pacific Palisades shoreline */
+  west: -118.58,
+  north: 34.08,
   east: -118.235,
 } as const;
 
@@ -494,33 +495,35 @@ export function paintSuitabilityHeatmap(
 }
 
 /**
- * Ocean/sunset openness colormap: faint inland → sky → teal → green (open wedge).
- * Higher alpha than suitability mid-tones so the layer reads as a real overlay.
+ * Ocean/sunset openness colormap: blocked (dark slate, still visible) →
+ * usable teal → open green. Low scores stay opaque so every analyzed address
+ * reads on the map — we do not hide blocked lots or wash them into neighbors.
  */
 export function oceanViewshedRgba(
   score: number,
 ): [number, number, number, number] {
   const t = clamp(score / 100, 0, 1);
-  const a = Math.round(clamp((t - 0.05) / 0.7, 0, 1) * 225);
+  // Blocked lots: visible dark slate; open wedge: stronger teal/green
+  const a = Math.round(95 + t * 130);
 
   let r: number;
   let g: number;
   let b: number;
   if (t < 0.35) {
     const u = t / 0.35;
-    r = Math.round(90 + u * 40);
-    g = Math.round(110 + u * 50);
-    b = Math.round(130 + u * 40);
+    r = Math.round(55 + u * 55);
+    g = Math.round(65 + u * 70);
+    b = Math.round(78 + u * 55);
   } else if (t < 0.6) {
     const u = (t - 0.35) / 0.25;
-    r = Math.round(130 - u * 50);
-    g = Math.round(160 + u * 20);
-    b = Math.round(170 - u * 40);
+    r = Math.round(110 - u * 40);
+    g = Math.round(135 + u * 35);
+    b = Math.round(133 - u * 25);
   } else {
     const u = (t - 0.6) / 0.4;
-    r = Math.round(80 - u * 69);
-    g = Math.round(180 - u * 40);
-    b = Math.round(130 - u * 50);
+    r = Math.round(70 - u * 59);
+    g = Math.round(170 - u * 30);
+    b = Math.round(108 - u * 40);
   }
   return [r, g, b, a];
 }

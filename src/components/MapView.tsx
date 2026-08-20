@@ -175,10 +175,10 @@ export function MapView({
   const showSuitability = metricLayer === "suitability";
   const showNoise = metricLayer === "noise";
   const showOcean = metricLayer === "ocean";
+  // Ocean: address-local halos for every scored lot + dedicated dots/fans.
+  // Suitability has its own continuous wash + halos pair.
   const showAddressHeat =
-    metricLayer !== "off" &&
-    metricLayer !== "suitability" &&
-    metricLayer !== "ocean";
+    metricLayer !== "off" && metricLayer !== "suitability";
 
   return (
     <MapContainer
@@ -220,7 +220,7 @@ export function MapView({
         listings={allListings}
       />
 
-      {/* Per-metric: lot-scale halos (ocean uses dedicated wedge layer) */}
+      {/* Per-metric lot-scale halos — ocean included (full 0–100 GIS scores) */}
       <AddressMetricHeatLayer
         enabled={showAddressHeat}
         metric={metricLayer}
