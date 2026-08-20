@@ -9,6 +9,9 @@ import { haversineKm } from "./geo";
  * 2) Sample terrain elevation (DEM) along each ray.
  * 3) Line-of-sight: terrain must stay below the viewer→target ray.
  * 4) Near-field building occlusion via OSM Overpass (height / levels).
+ *    A roof on the ocean sightline above the eye ray blocks that ray —
+ *    including the house next door / next row. Distance-to-coast is not
+ *    a carve-out; beachfront scores high because nothing sits on-ray west.
  *
  * score100 = round(clear rays / tested rays × 100). Higher means a wider
  * clear ocean/sunset wedge. “Has view” when score ≥35 and ≥2 rays clear.
@@ -47,7 +50,7 @@ export interface OceanViewshedResult {
 
 /** Plain-language blurb for UI captions / tooltips. */
 export const OCEAN_VIEWSHED_EXPLAIN =
-  "How open the ocean/sunset direction is from this lot (0–100). We cast sight-lines toward the Pacific in the sunset band and count how many clear hills and nearby buildings. Not about which way the house faces. Screening only — confirm on tour.";
+  "How open the ocean/sunset direction is from this lot (0–100). Sight-lines toward the Pacific; a building on the ray that sticks above the eye line blocks that ray — so a second-row house can score 0 while the Strand house in front scores high. Not about which way the house faces. Screening only — confirm on tour.";
 
 /** Short label for a score or slider threshold. */
 export function viewshedBandLabel(score100: number): string {
@@ -425,43 +428,35 @@ function buildingBlocksRay(
 ): boolean {
   const totalKm = haversineKm(lat0, lng0, lat1, lng1);
   if (totalKm < 0.05) return false;
-  // Strand / bluff lip — looking onto water; don't zero a whole street over
-  // a hard 0.4 km cliff (that made neighbors look randomly scored).
-  if (coastKm < 0.28) return false;
   const brgTarget = bearingDeg(lat0, lng0, lat1, lng1);
-  // Near-coast flats: only very near on-ray peers. Hills: short peer window.
-  // Inland flats: up to the shoreline approach.
-  let peerKm: number;
-  if (viewerGround >= 35) {
-    peerKm = 0.2;
-  } else if (coastKm < 0.9) {
-    // Ramp 0.28→0.9 km: peer window ~55 m → 120 m (second-row glimpses survive)
-    peerKm = 0.055 + ((coastKm - 0.28) / 0.62) * 0.065;
-  } else {
-    peerKm = Math.min(0.55, coastKm * 0.35);
-  }
+  // Only buildings on the land approach to water can occlude. Strand lots
+  // looking west usually have nothing on-ray — not because of a distance
+  // carve-out, but because the next “lot” is sand/ocean.
+  const maxOccKm = Math.max(0.08, coastKm + 0.04);
 
   for (const b of buildings) {
     const dViewer = haversineKm(lat0, lng0, b.lat, b.lng);
-    if (dViewer < 0.035 || dViewer > peerKm) continue;
+    if (dViewer < 0.03 || dViewer > maxOccKm) continue;
     if (dViewer > totalKm) continue;
-    // Near the sand, ignore low sheds / single-story fluff — need a real wall
-    if (coastKm < 0.75 && b.heightM < 8) continue;
     const brgB = bearingDeg(lat0, lng0, b.lat, b.lng);
-    // Must sit nearly on this ray (not just "somewhere in the wedge")
-    if (angleDelta(brgTarget, brgB) > 5) continue;
+    // House next door / next row must sit on this sightline
+    if (angleDelta(brgTarget, brgB) > 6) continue;
 
     const t = Math.min(0.98, Math.max(0.02, dViewer / totalKm));
     const losElev = viewerElev + (targetElev - viewerElev) * t;
+    // Flat-peer roof at our ground + building height. A higher viewer
+    // (hill / upper story) can clear the same roof; a blocked second-row
+    // lot cannot.
     const buildingTop = viewerGround + b.heightM;
-    if (buildingTop > losElev + 1.5) return true;
+    if (buildingTop > losElev + 0.5) return true;
   }
   return false;
 }
 
 /**
- * When Overpass is empty/rate-limited, invent modest urban fabric only on the
- * flat land approach to the coast (not over water, not on hills/bluffs).
+ * When Overpass is empty/rate-limited, invent modest urban fabric on the
+ * flat land approach. Same rule: roof on the sightline above LOS → blocked.
+ * Hills skip the proxy (DEM owns terrain; fake rooftops over-block bluffs).
  */
 function syntheticUrbanBlocksRay(
   viewerElev: number,
@@ -472,22 +467,19 @@ function syntheticUrbanBlocksRay(
   totalKm: number,
   coastKm: number,
 ): boolean {
-  // Hills / PV bluffs: DEM handles terrain; don't invent a rooftop city
   if (viewerGround >= 35) return false;
-  // Keep the first ~2–3 beach blocks free of invented rooftops
-  if (coastKm < 0.85) return false;
-  const maxBlockKm = Math.min(coastKm - 0.08, 1.5);
-  if (maxBlockKm < 0.08) return false;
+  if (coastKm < 0.2) return false;
+  const maxBlockKm = Math.min(coastKm - 0.02, 1.6);
+  if (maxBlockKm < 0.06) return false;
 
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i];
-    if (s.distKm < 0.07 || s.distKm > maxBlockKm) continue;
+    if (s.distKm < 0.05 || s.distKm > maxBlockKm) continue;
     const ground = sampleElevs[i] ?? viewerGround;
     if (ground > viewerGround + 12) continue;
     const t = Math.min(0.98, Math.max(0.02, s.distKm / totalKm));
     const losElev = viewerElev + (targetElev - viewerElev) * t;
-    // 2-story + street trees must clear upper-story eye height (~6.5m)
-    const obstacleTop = ground + 10;
+    const obstacleTop = ground + 9.5;
     if (obstacleTop > losElev + 0.5) return true;
   }
   return false;

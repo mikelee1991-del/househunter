@@ -124,9 +124,10 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
       <div className="safety-legend">
         <strong>Ocean / sunset openness</strong>
         <p>
-          Soft halo at each listing from DEM line-of-sight in the sunset band.
-          Bright corridor = beach / open bluff; dark = blocked. Not a random
-          subset — every scored home is painted (faint when low).
+          Per-address DEM line-of-sight in the sunset band, blocked when a
+          building on the sightline sticks above the eye→ocean ray. Second-row
+          lots behind a full wall score low even if the Strand house in front
+          scores high; hills can clear the same roofs.
         </p>
         <ul>
           <li>
