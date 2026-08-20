@@ -197,12 +197,13 @@ export function oceanSamplesFromListings(
 ): HeatmapOceanSample[] {
   const out: HeatmapOceanSample[] = [];
   for (const l of listings) {
-    const score = l.analysis?.oceanViewshed?.score100;
-    if (typeof score === "number") {
-      out.push({ lat: l.lat, lng: l.lng, score });
-    } else if (l.oceanView) {
-      out.push({ lat: l.lat, lng: l.lng, score: 70 });
+    const ov = l.analysis?.oceanViewshed;
+    if (!ov || typeof ov.score100 !== "number") continue;
+    if ((ov.nearestCoastKm ?? 99) > 8) continue;
+    if (/too far inland|unavailable|pending rebake/i.test(ov.summary || "")) {
+      continue;
     }
+    out.push({ lat: l.lat, lng: l.lng, score: ov.score100 });
   }
   return out;
 }

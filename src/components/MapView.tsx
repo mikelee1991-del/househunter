@@ -26,6 +26,7 @@ import { ParameterScoreChart } from "./ParameterScoreChart";
 import { AddressMetricHeatLayer } from "./AddressMetricHeatLayer";
 import { OceanViewshedHeatLayer } from "./OceanViewshedHeatLayer";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
+import { WalkabilityHeatLayer } from "./WalkabilityHeatLayer";
 
 const NOISE_COLORS: Record<number, string> = {
   65: "#f0c92955",
@@ -175,10 +176,13 @@ export function MapView({
   const showSuitability = metricLayer === "suitability";
   const showNoise = metricLayer === "noise";
   const showOcean = metricLayer === "ocean";
-  // Ocean: address-local halos for every scored lot + dedicated dots/fans.
-  // Suitability has its own continuous wash + halos pair.
+  const showWalk = metricLayer === "walk";
+  // Address spots for per-home metrics. Walk uses a continuous area wash;
+  // suitability has its own wash; ocean uses halos + GIS dots/fans.
   const showAddressHeat =
-    metricLayer !== "off" && metricLayer !== "suitability";
+    metricLayer !== "off" &&
+    metricLayer !== "suitability" &&
+    metricLayer !== "walk";
 
   return (
     <MapContainer
@@ -219,6 +223,9 @@ export function MapView({
         metric="suitability"
         listings={allListings}
       />
+
+      {/* Continuous walkability across the metro (not address spots) */}
+      <WalkabilityHeatLayer enabled={showWalk} listings={allListings} />
 
       {/* Per-metric lot-scale halos — ocean included (full 0–100 GIS scores) */}
       <AddressMetricHeatLayer

@@ -62,23 +62,32 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "walk") {
     return (
       <div className="safety-legend">
-        <strong>Walkability (per address)</strong>
-        <p>{ADDRESS_NOTE} EPA Walkability at the home (1–20 → 0–100).</p>
+        <strong>Walkability (area)</strong>
+        <p>
+          Continuous EPA-style walk surface across the search area — neighborhood
+          averages from listing block-group scores (fallback where sparse), not
+          address-only spots.
+        </p>
         <ul>
           <li>
-            <i style={{ background: "#0b6e4f" }} />
-            Higher walk
+            <i style={{ background: "#1d4e89" }} />
+            Most walkable
             <span>15–20</span>
           </li>
           <li>
-            <i style={{ background: "#a3b18a" }} />
-            Moderate
-            <span>10–15</span>
+            <i style={{ background: "#3d8b66" }} />
+            Above average
+            <span>10.5–15</span>
           </li>
           <li>
             <i style={{ background: "#c4a35a" }} />
-            Lower walk
-            <span>&lt;10</span>
+            Below average
+            <span>5.8–10.5</span>
+          </li>
+          <li>
+            <i style={{ background: "#8a7a66" }} />
+            Least walkable
+            <span>≤5.75</span>
           </li>
         </ul>
       </div>
