@@ -27,6 +27,8 @@ const SKIP_EXISTING = process.env.PRECOMPUTE_FORCE !== "1";
 const CONCURRENCY = Math.max(1, Number(process.env.PRECOMPUTE_CONCURRENCY ?? 2));
 /** Skip full DEM viewshed inland of this distance (km); assign score 0. */
 const OCEAN_SKIP_COAST_KM = Number(process.env.PRECOMPUTE_OCEAN_SKIP_KM ?? 4);
+/** Skip live ocean DEM entirely (fast hunt scoring; rebake coastal later). */
+const SKIP_OCEAN = process.env.PRECOMPUTE_SKIP_OCEAN === "1";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -53,7 +55,10 @@ async function main() {
     `Precomputing analysis for ${pending.length}/${listings.length} listings` +
       `${SKIP_EXISTING ? " (skip existing; PRECOMPUTE_FORCE=1 to redo)" : ""}` +
       ` · concurrency ${CONCURRENCY}` +
-      ` · inland ocean skip >${OCEAN_SKIP_COAST_KM}km…`,
+      (SKIP_OCEAN
+        ? " · SKIP_OCEAN=1 (placeholder viewshed)"
+        : ` · inland ocean skip >${OCEAN_SKIP_COAST_KM}km`) +
+      "…",
   );
 
   const emptyViewshed = (coastKm: number) => ({
@@ -95,7 +100,7 @@ async function main() {
 
     const coastKm = nearestCoastKm(l.lat, l.lng);
     let viewshed;
-    if (coastKm > OCEAN_SKIP_COAST_KM) {
+    if (SKIP_OCEAN || coastKm > OCEAN_SKIP_COAST_KM) {
       viewshed = emptyViewshed(coastKm);
     } else {
       try {
