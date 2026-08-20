@@ -7,11 +7,17 @@ import {
   type SuitabilityRaster,
 } from "./suitabilityHeatmap";
 
+export type WalkBounds = {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+};
+
 type WalkRing = {
   name: string;
   walkIndex: number;
   ring: [number, number][];
-  /** Ring centroid for nearest-neighborhood fill outside polygons */
   lat: number;
   lng: number;
 };
@@ -21,37 +27,34 @@ function clamp(n: number, lo: number, hi: number) {
 }
 
 /**
- * EPA walk 1–20 → rgba. Higher walk = cooler blue-green; lower = warm sand.
- * Strong alpha so the continuous wash reads clearly on the light basemap.
+ * EPA walk 1–20 → rgba. Fully opaque — ImageOverlay controls layer opacity.
  */
 export function walkIndexRgba(
   walkIndex: number,
 ): [number, number, number, number] {
   const t = clamp((walkIndex - 1) / 19, 0, 1);
-  const a = Math.round(175 + t * 55);
   let r: number;
   let g: number;
   let b: number;
   if (t < 0.35) {
     const u = t / 0.35;
-    r = Math.round(170 - u * 30);
-    g = Math.round(130 - u * 15);
-    b = Math.round(85 + u * 25);
+    r = Math.round(176 - u * 28);
+    g = Math.round(138 - u * 18);
+    b = Math.round(88 + u * 28);
   } else if (t < 0.65) {
     const u = (t - 0.35) / 0.3;
-    r = Math.round(140 - u * 80);
-    g = Math.round(115 + u * 50);
-    b = Math.round(110 + u * 30);
+    r = Math.round(148 - u * 78);
+    g = Math.round(120 + u * 48);
+    b = Math.round(116 + u * 28);
   } else {
     const u = (t - 0.65) / 0.35;
-    r = Math.round(60 - u * 30);
-    g = Math.round(165 - u * 35);
-    b = Math.round(140 + u * 45);
+    r = Math.round(70 - u * 40);
+    g = Math.round(168 - u * 38);
+    b = Math.round(144 + u * 40);
   }
-  return [r, g, b, a];
+  return [r, g, b, 255];
 }
 
-/** Mean EPA walk per neighborhood from listings; fall back to seed walkFallback. */
 function buildWalkRings(listings: Listing[]): WalkRing[] {
   const sum = new Map<string, number>();
   const count = new Map<string, number>();
@@ -66,7 +69,9 @@ function buildWalkRings(listings: Listing[]): WalkRing[] {
   return NEIGHBORHOOD_LIVABILITY.map((n) => {
     const c = count.get(n.name) || 0;
     const walkIndex =
-      c >= 3 ? Math.round(((sum.get(n.name) || 0) / c) * 10) / 10 : n.walkFallback;
+      c >= 3
+        ? Math.round(((sum.get(n.name) || 0) / c) * 10) / 10
+        : n.walkFallback;
     let lat = 0;
     let lng = 0;
     for (const [la, ln] of n.polygon) {
@@ -88,7 +93,6 @@ function walkAt(lat: number, lng: number, rings: WalkRing[]): number {
   for (const n of rings) {
     if (pointInRing(lng, lat, n.ring)) return n.walkIndex;
   }
-  // Outside drawn rings (ocean / gaps): nearest neighborhood centroid
   let best = rings[0]?.walkIndex ?? 10;
   let bestD = Infinity;
   for (const n of rings) {
@@ -102,16 +106,16 @@ function walkAt(lat: number, lng: number, rings: WalkRing[]): number {
 }
 
 /**
- * Continuous walkability surface across the South Bay bounds.
- * Neighborhood EPA averages (or fallbacks) fill the whole metro — not
- * address-only spots.
+ * Continuous walkability surface. Pass viewport bounds so the wash fills
+ * what the user sees.
  */
 export function paintWalkabilityHeatmap(
   listings: Listing[],
-  cols = 220,
-  rows = 165,
+  cols = 280,
+  rows = 210,
+  bounds: WalkBounds = SUITABILITY_BOUNDS,
 ): SuitabilityRaster {
-  const { south, west, north, east } = SUITABILITY_BOUNDS;
+  const { south, west, north, east } = bounds;
   const rings = buildWalkRings(listings);
   const canvas = document.createElement("canvas");
   canvas.width = cols;

@@ -64,9 +64,9 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
       <div className="safety-legend">
         <strong>Walkability (area)</strong>
         <p>
-          Continuous EPA-style walk surface across the search area — neighborhood
-          averages from listing block-group scores (fallback where sparse), not
-          address-only spots.
+          Continuous EPA-style walk surface across the whole map view —
+          neighborhood averages from listing block-group scores (fallback where
+          sparse). Pans and zooms with the map.
         </p>
         <ul>
           <li>
