@@ -221,11 +221,11 @@ function samplesAlongRay(
   lng0: number,
   lat1: number,
   lng1: number,
-  stepKm = 0.18,
+  stepKm = 0.22,
 ): SamplePoint[] {
   const total = haversineKm(lat0, lng0, lat1, lng1);
   if (total < 0.05) return [];
-  const n = Math.max(6, Math.min(48, Math.ceil(total / stepKm)));
+  const n = Math.max(6, Math.min(28, Math.ceil(total / stepKm)));
   const out: SamplePoint[] = [];
   for (let i = 1; i <= n; i++) {
     const t = i / n;
@@ -556,7 +556,7 @@ export async function analyzeOceanViewshed(input: {
 
   // Gather all elevation sample points (dense DEM steps along each ray)
   const raySamples = targets.map(([tlng, tlat]) =>
-    samplesAlongRay(input.lat, input.lng, tlat, tlng, 0.18),
+    samplesAlongRay(input.lat, input.lng, tlat, tlng, 0.22),
   );
   const allPoints: { lat: number; lng: number }[] = [
     { lat: input.lat, lng: input.lng },
