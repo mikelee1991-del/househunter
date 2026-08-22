@@ -14,6 +14,11 @@ import {
 } from "../lib/oceanViewshed";
 import type { Anchor, AnchorId, Criteria } from "../types";
 import {
+  DEFAULT_METRIC_WEIGHTS,
+  METRIC_WEIGHT_META,
+  metricWeightPercent,
+} from "../lib/metricWeights";
+import {
   buildPrefs,
   downloadPrefs,
   parsePrefsJson,
@@ -517,6 +522,97 @@ export function CriteriaPanel({
             }
           >
             10.5+
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-section">
+        <h2>Best areas weights</h2>
+        <p className="hint">
+          Relative importance on the <strong>Best areas</strong> map (and
+          location-fit peaks). Drag any slider to zero to ignore that signal.
+          Values are normalized to 100%.
+        </p>
+        {METRIC_WEIGHT_META.map(({ id, label, hint }) => {
+          const weights =
+            criteria.metricWeights ?? DEFAULT_METRIC_WEIGHTS;
+          const value = weights[id];
+          const pct = metricWeightPercent(weights, id);
+          return (
+            <label key={id} className="field field-inline">
+              <span>
+                {label} — {pct}%
+                <span className="field-caption-inline"> · {hint}</span>
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={value}
+                onChange={(e) =>
+                  onCriteriaChange({
+                    ...criteria,
+                    metricWeights: {
+                      ...weights,
+                      [id]: Number(e.target.value),
+                    },
+                  })
+                }
+              />
+            </label>
+          );
+        })}
+        <div className="chip-row chip-row-tight">
+          <button
+            type="button"
+            className="chip"
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                metricWeights: { ...DEFAULT_METRIC_WEIGHTS },
+              })
+            }
+          >
+            Reset weights
+          </button>
+          <button
+            type="button"
+            className="chip"
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                metricWeights: {
+                  drive: 10,
+                  noise: 10,
+                  safety: 10,
+                  walk: 15,
+                  ocean: 45,
+                  air: 10,
+                },
+              })
+            }
+          >
+            Favor ocean
+          </button>
+          <button
+            type="button"
+            className="chip"
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                metricWeights: {
+                  drive: 40,
+                  noise: 10,
+                  safety: 12,
+                  walk: 12,
+                  ocean: 16,
+                  air: 10,
+                },
+              })
+            }
+          >
+            Favor commute
           </button>
         </div>
       </section>

@@ -9,6 +9,7 @@
  * Export/import JSON to move prefs between devices without committing them.
  */
 import { DEFAULT_ANCHORS, DEFAULT_CRITERIA } from "../data/anchors";
+import { mergeMetricWeights } from "./metricWeights";
 import type { Anchor, Criteria } from "../types";
 
 export const PREFS_STORAGE_KEY = "househunter.userPrefs.v1";
@@ -89,6 +90,7 @@ function mergeCriteria(raw: unknown, anchors: Anchor[]): Criteria {
       base.requireWithinAllIsochrones,
     ),
     neighborhoods,
+    metricWeights: mergeMetricWeights(raw.metricWeights),
   };
 }
 

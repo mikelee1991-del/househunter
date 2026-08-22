@@ -230,6 +230,7 @@ export default function App() {
     setCriteria({
       ...DEFAULT_CRITERIA,
       driveMinutes: { ...DEFAULT_CRITERIA.driveMinutes },
+      metricWeights: { ...DEFAULT_CRITERIA.metricWeights },
       neighborhoods: [],
     });
     setAnchors(DEFAULT_ANCHORS.map((a) => ({ ...a })));

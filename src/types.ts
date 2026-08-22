@@ -12,6 +12,16 @@ export interface Anchor {
   color: string;
 }
 
+/** Relative importance of location signals on the Best areas map. */
+export type MetricWeights = {
+  drive: number;
+  noise: number;
+  safety: number;
+  walk: number;
+  ocean: number;
+  air: number;
+};
+
 export interface Criteria {
   /** Maximum list price — no minimum (cheaper homes are fine) */
   budgetMax: number;
@@ -66,6 +76,11 @@ export interface Criteria {
   driveMinutes: Record<string, number>;
   requireWithinAllIsochrones: boolean;
   neighborhoods: string[];
+  /**
+   * Relative weights for Best areas / location fit (any positive scale;
+   * normalized when scoring). Keys: drive, noise, safety, walk, ocean, air.
+   */
+  metricWeights: MetricWeights;
 }
 
 export type ListingSource =
