@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ImageOverlay, useMap, useMapEvents } from "react-leaflet";
+import { estimateTrafficCnel } from "../data/ambientNoise";
 import {
   noiseCnelRgba,
   paintAddressHalos,
@@ -62,6 +63,9 @@ function samplesForMetric(
       case "noise":
         score = l.noiseCnel;
         break;
+      case "traffic":
+        score = estimateTrafficCnel(l.lat, l.lng);
+        break;
       case "safety":
         score = l.analysis?.safetyScore ?? null;
         break;
@@ -97,7 +101,7 @@ function samplesForMetric(
 
 function rgbaFor(metric: MapMetricLayer) {
   if (metric === "ocean" || metric === "sunset") return oceanViewshedRgba;
-  if (metric === "noise") return noiseCnelRgba;
+  if (metric === "noise" || metric === "traffic") return noiseCnelRgba;
   if (metric === "condition") return conditionRgba;
   return scoreRgba;
 }

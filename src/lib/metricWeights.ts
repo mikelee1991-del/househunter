@@ -3,7 +3,8 @@ import type { MetricWeights } from "../types";
 /** Relative importance of each Best-areas / location signal (any positive scale). */
 export const DEFAULT_METRIC_WEIGHTS: MetricWeights = {
   drive: 22,
-  noise: 12,
+  noise: 7,
+  traffic: 5,
   safety: 13,
   walk: 14,
   ocean: 16,
@@ -25,7 +26,16 @@ export const METRIC_WEIGHT_META: {
   },
   { id: "walk", label: "Walkability", hint: "EPA-style walk index" },
   { id: "safety", label: "Safety", hint: "Neighborhood crime index" },
-  { id: "noise", label: "Quiet", hint: "Away from LAX / freeways" },
+  {
+    id: "noise",
+    label: "Quiet (ambient)",
+    hint: "LAX + roads combined CNEL",
+  },
+  {
+    id: "traffic",
+    label: "Away from traffic",
+    hint: "Freeway / PCH corridors only",
+  },
   { id: "air", label: "Air quality", hint: "CalEnviroScreen burden" },
 ];
 
@@ -66,6 +76,16 @@ export function mergeMetricWeights(raw: unknown): MetricWeights {
     const combined = Math.max(0, Math.min(100, rec.ocean));
     base.ocean = Math.round(combined * 0.62);
     base.sunset = Math.round(combined * 0.38);
+  }
+  // Legacy: single "noise" weight covered ambient + road exposure
+  if (
+    typeof rec.noise === "number" &&
+    Number.isFinite(rec.noise) &&
+    rec.traffic == null
+  ) {
+    const combined = Math.max(0, Math.min(100, rec.noise));
+    base.noise = Math.round(combined * 0.58);
+    base.traffic = Math.round(combined * 0.42);
   }
   for (const k of Object.keys(base) as (keyof MetricWeights)[]) {
     const v = rec[k];

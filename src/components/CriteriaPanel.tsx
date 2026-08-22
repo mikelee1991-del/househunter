@@ -502,7 +502,7 @@ export function CriteriaPanel({
           </label>
         </div>
         <label className="field field-inline">
-          <span>Max noise — {criteria.maxNoiseCnel} CNEL</span>
+          <span>Max ambient noise — {criteria.maxNoiseCnel} CNEL</span>
           <input
             type="range"
             min={40}
@@ -513,8 +513,25 @@ export function CriteriaPanel({
           />
         </label>
         <p className="field-caption">
-          Combined airport (LAX) + highway screening — quieter homes score
-          better.
+          Combined LAX + road screening — bedroom quiet. Airport-heavy lots can
+          fail this without failing traffic.
+        </p>
+        <label className="field field-inline">
+          <span>
+            Max traffic — {criteria.maxTrafficCnel ?? 72} CNEL (roads)
+          </span>
+          <input
+            type="range"
+            min={40}
+            max={75}
+            step={1}
+            value={criteria.maxTrafficCnel ?? 72}
+            onChange={(e) => set("maxTrafficCnel", Number(e.target.value))}
+          />
+        </label>
+        <p className="field-caption">
+          Freeway / PCH corridor exposure only — “not next to the 405.” Does
+          not include airport contours.
         </p>
       </section>
 
@@ -649,12 +666,13 @@ export function CriteriaPanel({
                 ...criteria,
                 metricWeights: {
                   drive: 10,
-                  noise: 8,
+                  noise: 5,
+                  traffic: 4,
                   safety: 10,
                   walk: 12,
                   ocean: 35,
                   sunset: 18,
-                  air: 7,
+                  air: 6,
                 },
               })
             }
@@ -669,12 +687,13 @@ export function CriteriaPanel({
                 ...criteria,
                 metricWeights: {
                   drive: 10,
-                  noise: 8,
+                  noise: 5,
+                  traffic: 4,
                   safety: 10,
                   walk: 12,
                   ocean: 12,
                   sunset: 40,
-                  air: 8,
+                  air: 7,
                 },
               })
             }
@@ -689,12 +708,13 @@ export function CriteriaPanel({
                 ...criteria,
                 metricWeights: {
                   drive: 40,
-                  noise: 10,
+                  noise: 6,
+                  traffic: 6,
                   safety: 12,
                   walk: 12,
                   ocean: 10,
                   sunset: 8,
-                  air: 8,
+                  air: 6,
                 },
               })
             }

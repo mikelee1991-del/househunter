@@ -98,6 +98,7 @@ export default function App() {
     metricLayer === "ocean" ||
     metricLayer === "sunset" ||
     metricLayer === "noise" ||
+    metricLayer === "traffic" ||
     (metricLayer === "suitability" && needLiveHeatTracts);
   const { data: safetyTracts } = useSafetyTracts(loadTractsForMetric);
   const { data: airTracts } = useAirQualityTracts(loadTractsForMetric);

@@ -42,8 +42,14 @@ export function ContinuousMetricHeatLayer({
       setRaster(null);
       return;
     }
-    // Noise paints direct CNEL — no tract wait
-    if (metric !== "noise" && !safetyTracts && !airTracts) return;
+    // Noise / traffic paint direct CNEL — no tract wait
+    if (
+      metric !== "noise" &&
+      metric !== "traffic" &&
+      !safetyTracts &&
+      !airTracts
+    )
+      return;
 
     let cancelled = false;
     const havePolys =

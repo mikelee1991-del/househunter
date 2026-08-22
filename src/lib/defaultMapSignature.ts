@@ -30,6 +30,7 @@ export type DefaultMapSignature = {
   anchors: Array<{ id: AnchorId; lat: number; lng: number }>;
   driveMinutes: Record<AnchorId, number>;
   maxNoiseCnel: number;
+  maxTrafficCnel: number;
   minSafetyScore: number;
   walkMin: number;
   walkMax: number;
@@ -56,6 +57,7 @@ export function buildDefaultMapSignature(
     })),
     driveMinutes: { ...criteria.driveMinutes },
     maxNoiseCnel: criteria.maxNoiseCnel,
+    maxTrafficCnel: criteria.maxTrafficCnel ?? DEFAULT_CRITERIA.maxTrafficCnel,
     minSafetyScore: criteria.minSafetyScore,
     walkMin: criteria.walkMin,
     walkMax: criteria.walkMax,

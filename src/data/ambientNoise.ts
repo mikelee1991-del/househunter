@@ -131,3 +131,11 @@ export function noiseBreakdown(lat: number, lng: number): {
 export function estimateNoiseCnel(lat: number, lng: number): number {
   return noiseBreakdown(lat, lng).total;
 }
+
+/**
+ * Traffic / road-corridor exposure only (freeways + PCH). Same CNEL-shaped
+ * units as highway contribution in `estimateNoiseCnel`, but never includes LAX.
+ */
+export function estimateTrafficCnel(lat: number, lng: number): number {
+  return estimateHighwayNoiseCnel(lat, lng);
+}

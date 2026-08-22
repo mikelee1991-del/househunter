@@ -81,6 +81,10 @@ function mergeCriteria(raw: unknown, anchors: Anchor[]): Criteria {
     excludeFixerUpper: bool(raw.excludeFixerUpper, base.excludeFixerUpper),
     minConditionScore: num(raw.minConditionScore, base.minConditionScore),
     maxNoiseCnel: num(raw.maxNoiseCnel, base.maxNoiseCnel),
+    maxTrafficCnel: num(
+      raw.maxTrafficCnel,
+      base.maxTrafficCnel ?? DEFAULT_CRITERIA.maxTrafficCnel,
+    ),
     minSafetyScore: num(raw.minSafetyScore, base.minSafetyScore),
     minAirQualityScore: num(raw.minAirQualityScore, base.minAirQualityScore),
     walkMin: num(raw.walkMin, base.walkMin),

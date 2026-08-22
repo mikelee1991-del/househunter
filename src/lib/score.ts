@@ -1,4 +1,5 @@
 import { walkBandLabel } from "../data/neighborhoodLivability";
+import { estimateTrafficCnel } from "../data/ambientNoise";
 import type { Anchor, AnchorId, Criteria, Listing, ScoredListing } from "../types";
 import { analyzeCondition, type ConditionAssessment } from "./condition";
 import { driveMinutesToAnchors } from "./geo";
@@ -218,13 +219,29 @@ export function scoreListing(
     matchReasons.push("Acceptable condition from listing text");
   }
 
-  // Noise
+  // Ambient noise (LAX ∪ roads)
   if (listing.noiseCnel <= criteria.maxNoiseCnel) {
-    score += 10;
-    matchReasons.push(`Noise ~${listing.noiseCnel} CNEL`);
+    score += 8;
+    matchReasons.push(`Quiet ~${listing.noiseCnel} CNEL (ambient)`);
   } else {
     failReasons.push(
-      `Noise ~${listing.noiseCnel} CNEL > max ${criteria.maxNoiseCnel} (airport/highway)`,
+      `Noise ~${listing.noiseCnel} CNEL > max ${criteria.maxNoiseCnel} (LAX + roads)`,
+    );
+  }
+
+  // Traffic / road corridors only (no airport)
+  const trafficCnel = estimateTrafficCnel(listing.lat, listing.lng);
+  const maxTraffic = criteria.maxTrafficCnel ?? 72;
+  if (trafficCnel <= maxTraffic) {
+    score += 6;
+    matchReasons.push(
+      trafficCnel <= 42
+        ? "Away from freeway / PCH corridors"
+        : `Traffic ~${trafficCnel} CNEL (roads)`,
+    );
+  } else {
+    failReasons.push(
+      `Traffic ~${trafficCnel} CNEL > max ${maxTraffic} (freeway / PCH)`,
     );
   }
 
