@@ -2,46 +2,52 @@ import { offshoreTargets, SOUTH_BAY_COASTLINE } from "../data/southBayCoastline"
 import { haversineKm } from "./geo";
 
 /**
- * GIS ocean / sunset viewshed (screening model, not a survey):
- * 1) Cast rays from the lot toward Pacific targets in the sunset azimuth
- *    band (SW–NW). House orientation is ignored — what matters is whether
- *    ocean + sunset sky are geometrically visible.
- * 2) Sample terrain elevation (DEM) along each ray.
- * 3) Line-of-sight: terrain must stay below the viewer→target ray.
- * 4) Near-field building occlusion via OSM Overpass (height / levels).
- *    A roof on the ocean sightline above the eye ray blocks that ray —
- *    including the house next door / next row. Distance-to-coast is not
- *    a carve-out; beachfront scores high because nothing sits on-ray west.
+ * GIS ocean view + sunset view (two separate scores, one DEM pass):
+ * - Ocean: clear LOS to Pacific water across a wide SW–NW wedge (coastal).
+ * - Sunset: clear LOS in a narrower due-west band — can score on inland
+ *   hills when western horizon is open, even without a beach wedge.
  *
- * score100 = round(clear rays / tested rays × 100). Higher means a wider
- * clear ocean/sunset wedge. “Has view” when score ≥35 and ≥2 rays clear.
- *
- * Density: ~18 evenly spaced sunset-band rays, ~180 m DEM steps, densified
- * offshore targets, OSM buildings when available + flat-urban canopy proxy
- * when Overpass is empty — address-specific, not neighborhood-smoothed.
+ * score100 aliases oceanViewScore for older UI. House facing is ignored.
  */
 
 export type ViewshedConfidence = "high" | "medium" | "low";
 
-/** Compass center of the sunset / Pacific look direction for South Bay. */
-export const SUNSET_OCEAN_CONE_CENTER_DEG = 270;
-/** Half-width of the sunset/ocean cone (covers ~SW through NW). */
-export const SUNSET_OCEAN_CONE_HALF_DEG = 55;
+/** Wide Pacific / ocean-water look cone (SW through NW). */
+export const OCEAN_CONE_CENTER_DEG = 270;
+export const OCEAN_CONE_HALF_DEG = 55;
+/** Narrow due-west sunset band (inland hills can still clear this). */
+export const SUNSET_CONE_CENTER_DEG = 270;
+export const SUNSET_CONE_HALF_DEG = 22;
+
+/** @deprecated Use OCEAN_CONE_* — kept for decorative fans / imports */
+export const SUNSET_OCEAN_CONE_CENTER_DEG = OCEAN_CONE_CENTER_DEG;
+/** @deprecated Use OCEAN_CONE_HALF_DEG */
+export const SUNSET_OCEAN_CONE_HALF_DEG = OCEAN_CONE_HALF_DEG;
+
+const OCEAN_MAX_COAST_KM = 12;
+const SUNSET_MAX_COAST_KM = 28;
 
 export interface OceanViewshedResult {
   hasOceanView: boolean;
-  /** 0–1 fraction of tested rays with clear terrain+building LOS */
+  hasSunsetView: boolean;
+  /** 0–1 fraction of ocean-cone rays with clear LOS */
   clearRayFraction: number;
-  /** Same signal as clearRayFraction, scaled 0–100 for UI */
+  /** Alias of oceanViewScore (compat) */
   score100: number;
+  /** Clear LOS to Pacific water 0–100 */
+  oceanViewScore: number;
+  /** Clear LOS in due-west sunset band 0–100 (hills inland OK) */
+  sunsetViewScore: number;
   clearRays: number;
   testedRays: number;
+  sunsetClearRays: number;
+  sunsetTestedRays: number;
   nearestCoastKm: number;
   terrainBlockedRays: number;
   buildingBlockedRays: number;
   buildingHits: number;
   eyeHeightM: number;
-  /** Sunset/ocean cone center used for rays (not house facing). */
+  /** Cone center used for rays (not house facing). */
   facingUsedDeg: number;
   confidence: ViewshedConfidence;
   summary: string;
@@ -50,7 +56,10 @@ export interface OceanViewshedResult {
 
 /** Plain-language blurb for UI captions / tooltips. */
 export const OCEAN_VIEWSHED_EXPLAIN =
-  "How open the ocean/sunset direction is from this lot (0–100). Sight-lines toward the Pacific; a building on the ray that sticks above the eye line blocks that ray — so a second-row house can score 0 while the Strand house in front scores high. Not about which way the house faces. Screening only — confirm on tour.";
+  "Ocean view = clear sight-lines to Pacific water. Sunset view = clear due-west horizon (can score on inland hills). A building on a ray that sticks above the eye line blocks that ray. Not about which way the house faces. Screening only — confirm on tour.";
+
+export const SUNSET_VIEWSHED_EXPLAIN =
+  "Sunset view scores how open the due-west band is from this lot. Elevated inland homes can score well when ridges do not block the western horizon — separate from beachfront ocean water views.";
 
 /** Short label for a score or slider threshold. */
 export function viewshedBandLabel(score100: number): string {
@@ -148,9 +157,10 @@ function nearestCoastKm(lat: number, lng: number): number {
 function pickOceanTargets(
   lat: number,
   lng: number,
-  coneCenterDeg = SUNSET_OCEAN_CONE_CENTER_DEG,
-  coneHalfAngle = SUNSET_OCEAN_CONE_HALF_DEG,
+  coneCenterDeg = OCEAN_CONE_CENTER_DEG,
+  coneHalfAngle = OCEAN_CONE_HALF_DEG,
   maxTargets = 18,
+  maxDistKm = 18,
 ): [number, number][] {
   const offshore = offshoreTargets();
   if (!offshore.length || maxTargets <= 0) return [];
@@ -162,7 +172,7 @@ function pickOceanTargets(
       const dist = haversineKm(lat, lng, olat, olng);
       return { olng, olat, brg, delta, dist };
     })
-    .filter((t) => t.delta <= coneHalfAngle && t.dist >= 0.35 && t.dist <= 18);
+    .filter((t) => t.delta <= coneHalfAngle && t.dist >= 0.35 && t.dist <= maxDistKm);
 
   if (candidates.length < 3) {
     return [...offshore]
@@ -516,51 +526,103 @@ function syntheticUrbanBlocksRay(
 export async function analyzeOceanViewshed(input: {
   lat: number;
   lng: number;
-  /** @deprecated Ignored — viewshed uses sunset/ocean azimuth, not house facing */
+  /** @deprecated Ignored — viewshed uses ocean/sunset azimuth, not house facing */
   facingDegrees?: number;
   /** Extra eye height above DEM ground (upper-story window ≈ 5–6m) */
   eyeHeightM?: number;
 }): Promise<OceanViewshedResult> {
-  const facingUsedDeg = SUNSET_OCEAN_CONE_CENTER_DEG;
+  const facingUsedDeg = OCEAN_CONE_CENTER_DEG;
   const eyeHeightM = input.eyeHeightM ?? 6.5;
   const coastKm = nearestCoastKm(input.lat, input.lng);
 
-  const targets = pickOceanTargets(
-    input.lat,
-    input.lng,
+  const empty = (
+    summary: string,
+    confidence: ViewshedConfidence = "low",
+  ): OceanViewshedResult => ({
+    hasOceanView: false,
+    hasSunsetView: false,
+    clearRayFraction: 0,
+    score100: 0,
+    oceanViewScore: 0,
+    sunsetViewScore: 0,
+    clearRays: 0,
+    testedRays: 0,
+    sunsetClearRays: 0,
+    sunsetTestedRays: 0,
+    nearestCoastKm: coastKm,
+    terrainBlockedRays: 0,
+    buildingBlockedRays: 0,
+    buildingHits: 0,
+    eyeHeightM,
     facingUsedDeg,
-    SUNSET_OCEAN_CONE_HALF_DEG,
-    18,
-  );
-  if (!targets.length || coastKm > 12) {
-    return {
-      hasOceanView: false,
-      clearRayFraction: 0,
-      score100: 0,
-      clearRays: 0,
-      testedRays: 0,
-      nearestCoastKm: coastKm,
-      terrainBlockedRays: 0,
-      buildingBlockedRays: 0,
-      buildingHits: 0,
-      eyeHeightM,
-      facingUsedDeg,
-      confidence: "low",
-      summary:
-        coastKm > 12
-          ? `Ocean viewshed 0/100 — too far inland (~${coastKm.toFixed(1)} km to coast)`
-          : "Ocean viewshed 0/100 — no ocean targets in view cone",
-      method: "dem-los+osm-buildings",
-    };
+    confidence,
+    summary,
+    method: "dem-los+osm-buildings",
+  });
+
+  if (coastKm > SUNSET_MAX_COAST_KM) {
+    return empty(
+      `Viewshed 0/100 — too far inland for ocean/sunset GIS (~${coastKm.toFixed(1)} km to coast)`,
+    );
   }
 
-  // Gather all elevation sample points (dense DEM steps along each ray)
-  const raySamples = targets.map(([tlng, tlat]) =>
-    samplesAlongRay(input.lat, input.lng, tlat, tlng, 0.22),
+  // Ocean: wide Pacific wedge (coastal). Sunset: narrower west band, longer reach.
+  const wantOcean = coastKm <= OCEAN_MAX_COAST_KM;
+  const oceanTargets = wantOcean
+    ? pickOceanTargets(
+        input.lat,
+        input.lng,
+        OCEAN_CONE_CENTER_DEG,
+        OCEAN_CONE_HALF_DEG,
+        18,
+        18,
+      )
+    : [];
+  const sunsetTargets = pickOceanTargets(
+    input.lat,
+    input.lng,
+    SUNSET_CONE_CENTER_DEG,
+    SUNSET_CONE_HALF_DEG,
+    12,
+    coastKm <= 12 ? 18 : 35,
+  );
+
+  // Merge unique targets; tag which scores each ray feeds
+  type Tagged = { lng: number; lat: number; ocean: boolean; sunset: boolean };
+  const byKey = new Map<string, Tagged>();
+  for (const [lng, lat] of oceanTargets) {
+    const key = `${lng.toFixed(5)},${lat.toFixed(5)}`;
+    const prev = byKey.get(key);
+    if (prev) prev.ocean = true;
+    else byKey.set(key, { lng, lat, ocean: true, sunset: false });
+  }
+  for (const [lng, lat] of sunsetTargets) {
+    const key = `${lng.toFixed(5)},${lat.toFixed(5)}`;
+    const prev = byKey.get(key);
+    if (prev) prev.sunset = true;
+    else byKey.set(key, { lng, lat, ocean: false, sunset: true });
+  }
+  // Ensure sunset-band ocean targets also count for sunset
+  for (const t of byKey.values()) {
+    if (!t.sunset) {
+      const brg = bearingDeg(input.lat, input.lng, t.lat, t.lng);
+      if (angleDelta(brg, SUNSET_CONE_CENTER_DEG) <= SUNSET_CONE_HALF_DEG) {
+        t.sunset = true;
+      }
+    }
+  }
+
+  const tagged = [...byKey.values()];
+  if (!tagged.length) {
+    return empty("Viewshed 0/100 — no ocean/sunset targets in view cones");
+  }
+
+  const raySamples = tagged.map((t) =>
+    samplesAlongRay(input.lat, input.lng, t.lat, t.lng, 0.22),
   );
   const allPoints: { lat: number; lng: number }[] = [
     { lat: input.lat, lng: input.lng },
-    ...targets.map(([tlng, tlat]) => ({ lat: tlat, lng: tlng })),
+    ...tagged.map((t) => ({ lat: t.lat, lng: t.lng })),
   ];
   for (const samples of raySamples) {
     for (const s of samples) allPoints.push({ lat: s.lat, lng: s.lng });
@@ -577,21 +639,27 @@ export async function analyzeOceanViewshed(input: {
     900,
   );
 
-  let clearRays = 0;
+  let oceanClear = 0;
+  let oceanTested = 0;
+  let sunsetClear = 0;
+  let sunsetTested = 0;
   let terrainBlockedRays = 0;
   let buildingBlockedRays = 0;
-  let elevIdx = 1 + targets.length; // samples start after viewer+targets
+  let elevIdx = 1 + tagged.length;
 
-  for (let r = 0; r < targets.length; r++) {
-    const [tlng, tlat] = targets[r];
+  for (let r = 0; r < tagged.length; r++) {
+    const t = tagged[r];
     const samples = raySamples[r];
-    const targetElev = (elevs[1 + r] ?? 0) + 1; // ~1m above water/shore
-    const totalKm = haversineKm(input.lat, input.lng, tlat, tlng);
+    const targetElev = (elevs[1 + r] ?? 0) + 1;
+    const totalKm = haversineKm(input.lat, input.lng, t.lat, t.lng);
     const sampleElevs = samples.map(() => {
       const e = elevs[elevIdx] ?? 0;
       elevIdx += 1;
       return e;
     });
+
+    if (t.ocean) oceanTested += 1;
+    if (t.sunset) sunsetTested += 1;
 
     const terrainOk = terrainClear(
       viewerElev,
@@ -608,8 +676,8 @@ export async function analyzeOceanViewshed(input: {
     let buildingHit = buildingBlocksRay(
       input.lat,
       input.lng,
-      tlat,
-      tlng,
+      t.lat,
+      t.lng,
       viewerElev,
       viewerGround,
       targetElev,
@@ -631,38 +699,50 @@ export async function analyzeOceanViewshed(input: {
       buildingBlockedRays += 1;
       continue;
     }
-    clearRays += 1;
+    if (t.ocean) oceanClear += 1;
+    if (t.sunset) sunsetClear += 1;
   }
 
-  const testedRays = targets.length;
-  const clearRayFraction = testedRays ? clearRays / testedRays : 0;
-  const score100 = viewshedScore100(clearRayFraction);
-  // Need a meaningful wedge of clear ocean, not a single lucky gap
-  const hasOceanView = clearRays >= 2 && score100 >= 35;
+  const oceanViewScore = viewshedScore100(
+    oceanTested ? oceanClear / oceanTested : 0,
+  );
+  const sunsetViewScore = viewshedScore100(
+    sunsetTested ? sunsetClear / sunsetTested : 0,
+  );
+  const clearRayFraction = oceanTested ? oceanClear / oceanTested : 0;
+  const score100 = oceanViewScore;
+  const hasOceanView = oceanClear >= 2 && oceanViewScore >= 35;
+  const hasSunsetView = sunsetClear >= 2 && sunsetViewScore >= 35;
 
   let confidence: ViewshedConfidence = "low";
-  if (testedRays >= 12 && buildings.length > 0) {
-    confidence = score100 >= 50 ? "high" : "medium";
-  } else if (testedRays >= 8) {
+  const tested = Math.max(oceanTested, sunsetTested);
+  if (tested >= 12 && buildings.length > 0) {
+    confidence =
+      Math.max(oceanViewScore, sunsetViewScore) >= 50 ? "high" : "medium";
+  } else if (tested >= 8) {
     confidence = "medium";
   }
 
   const detail =
-    `${clearRays}/${testedRays} clear rays` +
+    `ocean ${oceanClear}/${oceanTested}` +
+    ` · sunset ${sunsetClear}/${sunsetTested}` +
     (buildingBlockedRays ? ` · ${buildingBlockedRays} building-blocked` : "") +
     (terrainBlockedRays ? ` · ${terrainBlockedRays} terrain-blocked` : "") +
     ` · ~${coastKm.toFixed(1)} km to coast`;
 
-  const summary = hasOceanView
-    ? `Ocean viewshed ${score100}/100 (${detail})`
-    : `Ocean viewshed ${score100}/100 — no clear beach wedge (${detail})`;
+  const summary = `Ocean ${oceanViewScore}/100 · Sunset ${sunsetViewScore}/100 (${detail})`;
 
   return {
     hasOceanView,
+    hasSunsetView,
     clearRayFraction,
     score100,
-    clearRays,
-    testedRays,
+    oceanViewScore,
+    sunsetViewScore,
+    clearRays: oceanClear,
+    testedRays: oceanTested,
+    sunsetClearRays: sunsetClear,
+    sunsetTestedRays: sunsetTested,
     nearestCoastKm: coastKm,
     terrainBlockedRays,
     buildingBlockedRays,
@@ -695,18 +775,23 @@ export async function analyzeOceanViewshedBatch(
       console.warn(`Viewshed failed for ${l.id}`, err);
       out[l.id] = {
         hasOceanView: false,
+        hasSunsetView: false,
         clearRayFraction: 0,
         score100: 0,
+        oceanViewScore: 0,
+        sunsetViewScore: 0,
         clearRays: 0,
         testedRays: 0,
+        sunsetClearRays: 0,
+        sunsetTestedRays: 0,
         nearestCoastKm: nearestCoastKm(l.lat, l.lng),
         terrainBlockedRays: 0,
         buildingBlockedRays: 0,
         buildingHits: 0,
         eyeHeightM: 5.5,
-        facingUsedDeg: SUNSET_OCEAN_CONE_CENTER_DEG,
+        facingUsedDeg: OCEAN_CONE_CENTER_DEG,
         confidence: "low",
-        summary: "Ocean viewshed unavailable (elevation/Overpass error)",
+        summary: "Ocean/sunset viewshed unavailable (elevation/Overpass error)",
         method: "dem-los+osm-buildings",
       };
     }

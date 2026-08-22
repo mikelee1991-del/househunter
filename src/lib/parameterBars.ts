@@ -100,17 +100,33 @@ export function buildParameterBars(
     });
   }
 
-  const view = listing.oceanViewshed?.score100;
-  if (view != null) {
-    const minView = criteria.minOceanViewshed ?? 0;
+  const ocean =
+    listing.oceanViewshed?.oceanViewScore ?? listing.oceanViewshed?.score100;
+  if (ocean != null) {
+    const minOcean = criteria.minOceanViewshed ?? 0;
     bars.push({
       id: "ocean",
-      label: "Ocean / sunset",
-      valueLabel: String(view),
-      fill: clamp(view),
-      threshold: minView > 0 ? minView : undefined,
-      kind: minView > 0 ? "min" : "none",
-      ok: minView <= 0 ? null : view >= minView,
+      label: "Ocean view",
+      valueLabel: String(ocean),
+      fill: clamp(ocean),
+      threshold: minOcean > 0 ? minOcean : undefined,
+      kind: minOcean > 0 ? "min" : "none",
+      ok: minOcean <= 0 ? null : ocean >= minOcean,
+      detail: listing.oceanViewshed?.summary,
+    });
+  }
+
+  const sunset = listing.oceanViewshed?.sunsetViewScore;
+  if (sunset != null) {
+    const minSunset = criteria.minSunsetViewshed ?? 0;
+    bars.push({
+      id: "sunset",
+      label: "Sunset view",
+      valueLabel: String(sunset),
+      fill: clamp(sunset),
+      threshold: minSunset > 0 ? minSunset : undefined,
+      kind: minSunset > 0 ? "min" : "none",
+      ok: minSunset <= 0 ? null : sunset >= minSunset,
       detail: listing.oceanViewshed?.summary,
     });
   }

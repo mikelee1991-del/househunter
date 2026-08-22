@@ -96,6 +96,7 @@ export default function App() {
     metricLayer === "walk" ||
     metricLayer === "condition" ||
     metricLayer === "ocean" ||
+    metricLayer === "sunset" ||
     metricLayer === "noise" ||
     (metricLayer === "suitability" && needLiveHeatTracts);
   const { data: safetyTracts } = useSafetyTracts(loadTractsForMetric);
@@ -178,7 +179,7 @@ export default function App() {
   // Ocean layer: show the full eligible pool so beachfront view homes aren't
   // hidden by "Matches only" (overlay uses all inventory; pins should too).
   const visible =
-    metricLayer === "ocean"
+    metricLayer === "ocean" || metricLayer === "sunset"
       ? eligible
       : showFlaggedOnly
         ? matches
@@ -198,10 +199,15 @@ export default function App() {
           ...l.analysis,
           oceanViewshed: {
             hasOceanView: v.hasOceanView,
+            hasSunsetView: v.hasSunsetView,
             clearRayFraction: v.clearRayFraction,
             score100: v.score100,
+            oceanViewScore: v.oceanViewScore,
+            sunsetViewScore: v.sunsetViewScore,
             clearRays: v.clearRays,
             testedRays: v.testedRays,
+            sunsetClearRays: v.sunsetClearRays,
+            sunsetTestedRays: v.sunsetTestedRays,
             nearestCoastKm: v.nearestCoastKm,
             terrainBlockedRays: v.terrainBlockedRays,
             buildingBlockedRays: v.buildingBlockedRays,

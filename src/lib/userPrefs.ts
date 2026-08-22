@@ -71,6 +71,7 @@ function mergeCriteria(raw: unknown, anchors: Anchor[]): Criteria {
     minBaths: num(raw.minBaths, base.minBaths),
     minSqft: num(raw.minSqft, base.minSqft),
     minOceanViewshed: num(raw.minOceanViewshed, base.minOceanViewshed),
+    minSunsetViewshed: num(raw.minSunsetViewshed, base.minSunsetViewshed ?? 0),
     requireOceanView: bool(raw.requireOceanView, base.requireOceanView),
     requireWestFacing: bool(raw.requireWestFacing, base.requireWestFacing),
     requireOutdoorSpace: bool(raw.requireOutdoorSpace, base.requireOutdoorSpace),

@@ -34,6 +34,7 @@ export type DefaultMapSignature = {
   walkMin: number;
   walkMax: number;
   minOceanViewshed: number;
+  minSunsetViewshed: number;
   minAirQualityScore: number;
   requireWithinAllIsochrones: boolean;
   metricWeights: Criteria["metricWeights"];
@@ -59,6 +60,7 @@ export function buildDefaultMapSignature(
     walkMin: criteria.walkMin,
     walkMax: criteria.walkMax,
     minOceanViewshed: criteria.minOceanViewshed ?? 0,
+    minSunsetViewshed: criteria.minSunsetViewshed ?? 0,
     minAirQualityScore: criteria.minAirQualityScore ?? 0,
     requireWithinAllIsochrones: !!criteria.requireWithinAllIsochrones,
     metricWeights: { ...(criteria.metricWeights ?? DEFAULT_CRITERIA.metricWeights) },

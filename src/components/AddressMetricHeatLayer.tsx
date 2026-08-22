@@ -35,14 +35,24 @@ function samplesForMetric(
     switch (metric) {
       case "ocean": {
         const ov = l.analysis?.oceanViewshed;
-        if (!ov || typeof ov.score100 !== "number") break;
-        // Skip inland placeholders and failed GIS so we don't paint false zeros
-        // as “blocked” across the whole metro.
+        if (!ov) break;
+        const s = ov.oceanViewScore ?? ov.score100;
+        if (typeof s !== "number") break;
         const coast = ov.nearestCoastKm ?? 99;
         const summary = ov.summary || "";
-        if (coast > 8) break;
+        if (coast > 12) break;
         if (/too far inland/i.test(summary)) break;
-        score = ov.score100;
+        score = s;
+        break;
+      }
+      case "sunset": {
+        const ov = l.analysis?.oceanViewshed;
+        if (!ov || typeof ov.sunsetViewScore !== "number") break;
+        const coast = ov.nearestCoastKm ?? 99;
+        const summary = ov.summary || "";
+        if (coast > 28) break;
+        if (/too far inland/i.test(summary)) break;
+        score = ov.sunsetViewScore;
         break;
       }
       case "noise":
@@ -79,7 +89,7 @@ function samplesForMetric(
 }
 
 function rgbaFor(metric: MapMetricLayer) {
-  if (metric === "ocean") return oceanViewshedRgba;
+  if (metric === "ocean" || metric === "sunset") return oceanViewshedRgba;
   if (metric === "noise") return noiseCnelRgba;
   return scoreRgba;
 }

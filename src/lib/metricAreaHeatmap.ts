@@ -21,6 +21,8 @@ import {
   oceanProxyAt,
   oceanSamplesFromListings,
   oceanViewshedRgba,
+  sunsetProxyAt,
+  sunsetSamplesFromListings,
   SUITABILITY_BOUNDS,
   type HeatmapCellBase,
   type SuitabilityRaster,
@@ -307,6 +309,21 @@ export function paintAreaMetricHeatmap(
     raster = paintCells(
       cells,
       (c) => oceanProxyAt(c.lat, c.lng, oceanSamples),
+      (score) => {
+        const [r, g, b] = oceanViewshedRgba(score);
+        const a = Math.round(110 + clamp(score / 100, 0, 1) * 100);
+        return [r, g, b, a];
+      },
+      anchors,
+      isochrones,
+      AREA_COLS,
+      AREA_ROWS,
+    );
+  } else if (metric === "sunset") {
+    const sunsetSamples = sunsetSamplesFromListings(listings);
+    raster = paintCells(
+      cells,
+      (c) => sunsetProxyAt(c.lat, c.lng, sunsetSamples),
       (score) => {
         const [r, g, b] = oceanViewshedRgba(score);
         const a = Math.round(110 + clamp(score / 100, 0, 1) * 100);

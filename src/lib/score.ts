@@ -98,40 +98,61 @@ export function scoreListing(
     );
   }
 
-  // Ocean / sunset viewshed — GIS score vs slider minimum (0 = off)
-  const minView = criteria.minOceanViewshed ?? 0;
-  const viewScore = viewshed
-    ? viewshed.score100
+  // Ocean view (Pacific water LOS) — separate from sunset
+  const minOcean = criteria.minOceanViewshed ?? 0;
+  const oceanScore = viewshed
+    ? (viewshed.oceanViewScore ?? viewshed.score100)
     : listing.oceanView
       ? 70
       : 0;
-  if (minView > 0) {
-    if (viewScore >= minView) {
-      score += 20;
+  if (minOcean > 0) {
+    if (oceanScore >= minOcean) {
+      score += 12;
       if (viewshed) {
         matchReasons.push(
-          `Ocean viewshed ${viewScore}/100 ≥ ${minView} (${viewshed.confidence})`,
+          `Ocean view ${oceanScore}/100 ≥ ${minOcean} (${viewshed.confidence})`,
         );
-        if (viewshed.buildingBlockedRays === 0) score += 4;
+        if (viewshed.buildingBlockedRays === 0) score += 2;
       } else {
         matchReasons.push(
-          `Ocean/sunset view (listing text ≈ ${viewScore}/100 ≥ ${minView})`,
+          `Ocean view (listing text ≈ ${oceanScore}/100 ≥ ${minOcean})`,
         );
       }
     } else {
       failReasons.push(
-        `Ocean viewshed ${viewScore}/100 < ${minView}${
+        `Ocean view ${oceanScore}/100 < ${minOcean}${
           viewshed ? ` (${viewshed.summary})` : " (no GIS yet / no listing view)"
         }`,
       );
     }
-  } else if (viewScore >= 35) {
-    score += 8;
+  } else if (oceanScore >= 35) {
+    score += 5;
     matchReasons.push(
       viewshed
-        ? `Ocean viewshed ${viewScore}/100 (bonus)`
-        : "Ocean/sunset view bonus",
+        ? `Ocean view ${oceanScore}/100 (bonus)`
+        : "Ocean view bonus",
     );
+  }
+
+  // Sunset view (due-west horizon) — hills inland can score without beach water
+  const minSunset = criteria.minSunsetViewshed ?? 0;
+  const sunsetScore = viewshed?.sunsetViewScore;
+  if (minSunset > 0) {
+    if (sunsetScore != null && sunsetScore >= minSunset) {
+      score += 10;
+      matchReasons.push(
+        `Sunset view ${sunsetScore}/100 ≥ ${minSunset} (${viewshed!.confidence})`,
+      );
+    } else {
+      failReasons.push(
+        `Sunset view ${sunsetScore == null ? "unknown" : `${sunsetScore}/100`} < ${minSunset}${
+          viewshed ? ` (${viewshed.summary})` : " (no GIS yet)"
+        }`,
+      );
+    }
+  } else if (sunsetScore != null && sunsetScore >= 35) {
+    score += 4;
+    matchReasons.push(`Sunset view ${sunsetScore}/100 (bonus)`);
   }
 
   // Single-family detached — no shared walls
@@ -328,7 +349,9 @@ export function scoreListing(
       coreFails.includes(r) ||
       r.startsWith("Pending sale") ||
       ((criteria.minOceanViewshed ?? 0) > 0 &&
-        r.startsWith("Ocean viewshed")) ||
+        r.startsWith("Ocean view")) ||
+      ((criteria.minSunsetViewshed ?? 0) > 0 &&
+        r.startsWith("Sunset view")) ||
       (r.startsWith("Noise ~") && r.includes("> max")) ||
       r.startsWith("Airplane noise") ||
       r.startsWith("Neighborhood filter") ||
@@ -361,10 +384,15 @@ export function scoreListing(
     oceanViewshed: viewshed
       ? {
           hasOceanView: viewshed.hasOceanView,
+          hasSunsetView: viewshed.hasSunsetView,
           clearRayFraction: viewshed.clearRayFraction,
           score100: viewshed.score100,
+          oceanViewScore: viewshed.oceanViewScore,
+          sunsetViewScore: viewshed.sunsetViewScore,
           clearRays: viewshed.clearRays,
           testedRays: viewshed.testedRays,
+          sunsetClearRays: viewshed.sunsetClearRays,
+          sunsetTestedRays: viewshed.sunsetTestedRays,
           nearestCoastKm: viewshed.nearestCoastKm,
           terrainBlockedRays: viewshed.terrainBlockedRays,
           buildingBlockedRays: viewshed.buildingBlockedRays,

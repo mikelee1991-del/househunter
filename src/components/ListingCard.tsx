@@ -77,28 +77,65 @@ export function ListingCard({ listing, criteria, selected, onSelect }: Props) {
             walkMax={criteria.walkMax}
             airQualityScore={listing.airQualityScore}
             minAirQualityScore={criteria.minAirQualityScore}
-            oceanViewshedScore={listing.oceanViewshed?.score100}
+            oceanViewshedScore={
+              listing.oceanViewshed?.oceanViewScore ??
+              listing.oceanViewshed?.score100
+            }
             oceanViewshedHasView={
               listing.oceanViewshed != null
-                ? listing.oceanViewshed.score100 >= criteria.minOceanViewshed
+                ? (listing.oceanViewshed.oceanViewScore ??
+                    listing.oceanViewshed.score100) >=
+                    criteria.minOceanViewshed ||
+                  criteria.minOceanViewshed <= 0
                 : undefined
             }
             minOceanViewshed={criteria.minOceanViewshed}
+            sunsetViewshedScore={listing.oceanViewshed?.sunsetViewScore}
+            sunsetViewshedHasView={
+              listing.oceanViewshed?.sunsetViewScore != null
+                ? listing.oceanViewshed.sunsetViewScore >=
+                    (criteria.minSunsetViewshed ?? 0) ||
+                  (criteria.minSunsetViewshed ?? 0) <= 0
+                : undefined
+            }
+            minSunsetViewshed={criteria.minSunsetViewshed ?? 0}
           />
         )}
         <p className="desc">{listing.description}</p>
         <div className="tags">
           {listing.oceanViewshed ? (
-            <span
-              className={`tag ${
-                listing.oceanViewshed.score100 >= criteria.minOceanViewshed
-                  ? "tag-ok"
-                  : "tag-bad"
-              }`}
-              title={listing.oceanViewshed.summary}
-            >
-              Ocean/sunset {listing.oceanViewshed.score100}/100
-            </span>
+            <>
+              <span
+                className={`tag ${
+                  (listing.oceanViewshed.oceanViewScore ??
+                    listing.oceanViewshed.score100) >=
+                    criteria.minOceanViewshed ||
+                  criteria.minOceanViewshed <= 0
+                    ? "tag-ok"
+                    : "tag-bad"
+                }`}
+                title={listing.oceanViewshed.summary}
+              >
+                Ocean{" "}
+                {listing.oceanViewshed.oceanViewScore ??
+                  listing.oceanViewshed.score100}
+                /100
+              </span>
+              {listing.oceanViewshed.sunsetViewScore != null && (
+                <span
+                  className={`tag ${
+                    listing.oceanViewshed.sunsetViewScore >=
+                      (criteria.minSunsetViewshed ?? 0) ||
+                    (criteria.minSunsetViewshed ?? 0) <= 0
+                      ? "tag-ok"
+                      : "tag-bad"
+                  }`}
+                  title={listing.oceanViewshed.summary}
+                >
+                  Sunset {listing.oceanViewshed.sunsetViewScore}/100
+                </span>
+              )}
+            </>
           ) : (
             listing.oceanView && (
               <span className="tag">

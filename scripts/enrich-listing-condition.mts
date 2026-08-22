@@ -40,6 +40,11 @@ for (const l of data.listings) {
   };
   const viewshed = {
     ...a.oceanViewshed,
+    hasSunsetView: a.oceanViewshed.hasSunsetView ?? false,
+    oceanViewScore: a.oceanViewshed.oceanViewScore ?? a.oceanViewshed.score100,
+    sunsetViewScore: a.oceanViewshed.sunsetViewScore ?? 0,
+    sunsetClearRays: a.oceanViewshed.sunsetClearRays ?? 0,
+    sunsetTestedRays: a.oceanViewshed.sunsetTestedRays ?? 0,
     buildingHits: 0,
     eyeHeightM: 5.5,
     facingUsedDeg: 270,
