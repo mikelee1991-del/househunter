@@ -204,11 +204,16 @@ export default function App() {
             clearRayFraction: v.clearRayFraction,
             score100: v.score100,
             oceanViewScore: v.oceanViewScore,
-            sunsetViewScore: v.sunsetViewScore,
+            // Only write sunset when known — never stamp missing as 0
+            ...(v.sunsetViewScore != null
+              ? {
+                  sunsetViewScore: v.sunsetViewScore,
+                  sunsetClearRays: v.sunsetClearRays,
+                  sunsetTestedRays: v.sunsetTestedRays,
+                }
+              : {}),
             clearRays: v.clearRays,
             testedRays: v.testedRays,
-            sunsetClearRays: v.sunsetClearRays,
-            sunsetTestedRays: v.sunsetTestedRays,
             nearestCoastKm: v.nearestCoastKm,
             terrainBlockedRays: v.terrainBlockedRays,
             buildingBlockedRays: v.buildingBlockedRays,

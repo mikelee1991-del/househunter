@@ -36,12 +36,12 @@ export interface OceanViewshedResult {
   score100: number;
   /** Clear LOS to Pacific water 0–100 */
   oceanViewScore: number;
-  /** Clear LOS in due-west sunset band 0–100 (hills inland OK) */
-  sunsetViewScore: number;
+  /** Clear LOS in due-west sunset band 0–100 (hills inland OK). Optional until dual bake/live GIS. */
+  sunsetViewScore?: number;
   clearRays: number;
   testedRays: number;
-  sunsetClearRays: number;
-  sunsetTestedRays: number;
+  sunsetClearRays?: number;
+  sunsetTestedRays?: number;
   nearestCoastKm: number;
   terrainBlockedRays: number;
   buildingBlockedRays: number;
