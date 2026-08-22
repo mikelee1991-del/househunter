@@ -46,6 +46,12 @@ export default function App() {
   const [metricLayer, setMetricLayer] =
     useState<MapMetricLayer>("suitability");
   const [orsKey, setOrsKey] = useState(() => getStoredOrsKey());
+  /** Load heavy tract GeoJSON only when a live heat path needs it */
+  const [needLiveHeatTracts, setNeedLiveHeatTracts] = useState(false);
+  const onNeedLiveHeatTracts = useMemo(
+    () => () => setNeedLiveHeatTracts(true),
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -76,24 +82,16 @@ export default function App() {
     byId: viewshedById,
     progress: viewshedProgress,
   } = useOceanViewshed(listings, true);
-  const { data: safetyTracts } = useSafetyTracts(
+  const loadTractsForMetric =
     metricLayer === "safety" ||
-      metricLayer === "air" ||
-      metricLayer === "suitability" ||
-      metricLayer === "walk" ||
-      metricLayer === "condition" ||
-      metricLayer === "ocean" ||
-      metricLayer === "noise",
-  );
-  const { data: airTracts } = useAirQualityTracts(
     metricLayer === "air" ||
-      metricLayer === "safety" ||
-      metricLayer === "suitability" ||
-      metricLayer === "walk" ||
-      metricLayer === "condition" ||
-      metricLayer === "ocean" ||
-      metricLayer === "noise",
-  );
+    metricLayer === "walk" ||
+    metricLayer === "condition" ||
+    metricLayer === "ocean" ||
+    metricLayer === "noise" ||
+    (metricLayer === "suitability" && needLiveHeatTracts);
+  const { data: safetyTracts } = useSafetyTracts(loadTractsForMetric);
+  const { data: airTracts } = useAirQualityTracts(loadTractsForMetric);
   const {
     isochrones,
     mode: isoMode,
@@ -269,12 +267,17 @@ export default function App() {
             <span className="toolbar-label">Metric</span>
             <MetricLayerTabs value={metricLayer} onChange={setMetricLayer} />
           </div>
-          {isoMode === "loading" && (
-            <div className="map-overlay">
-              <p>{isoProgress || "Computing Valhalla isochrones…"}</p>
-              <p className="map-overlay-sub">
-                Real drive-time polygons via Valhalla (same as SimpleMapLab)
-              </p>
+          {isoMode === "loading" && Object.keys(isochrones).length === 0 && (
+            <div className="map-banner" role="status">
+              <span>{isoProgress || "Computing drive-time isochrones…"}</span>
+              <span className="map-banner-sub">
+                Map stays interactive — polygons appear when ready
+              </span>
+            </div>
+          )}
+          {isoMode !== "loading" && isoProgress && (
+            <div className="map-banner map-banner-quiet" role="status">
+              <span>{isoProgress}</span>
             </div>
           )}
           <MetricLayerLegend layer={metricLayer} />
@@ -287,11 +290,12 @@ export default function App() {
             criteria={criteria}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            showIsochrones={showIsochrones && isoMode !== "loading"}
+            showIsochrones={showIsochrones && Object.keys(isochrones).length > 0}
             metricLayer={metricLayer}
             satellite={satellite}
             safetyTracts={safetyTracts}
             airTracts={airTracts}
+            onNeedLiveHeatTracts={onNeedLiveHeatTracts}
           />
         </div>
 

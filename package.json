@@ -21,6 +21,7 @@
     "ingest:redfin": "node scripts/scrape-redfin-market.mjs",
     "ingest:all": "node scripts/ingest-all.mjs",
     "ingest:precompute": "tsx scripts/precompute-listing-scores.ts",
+    "precompute:map": "tsx scripts/precompute-default-map.mts",
     "build:safety": "node scripts/build-safety-tracts.mjs",
     "build:air": "node scripts/build-air-quality-tracts.mjs",
     "typecheck": "tsc -b --noEmit"

@@ -217,7 +217,7 @@ export async function buildIsochrones(
       for (const a of anchors) {
         onProgress?.(`OpenRouteService isochrone: ${a.label}`);
         map[a.id] = await fetchOrsIsochrone(a, driveMinutes[a.id], orsKey);
-        await new Promise((r) => setTimeout(r, 350));
+        await new Promise((r) => setTimeout(r, 200));
       }
       return { map, mode: "ors" };
     } catch (err) {
@@ -225,11 +225,19 @@ export async function buildIsochrones(
     }
   }
 
-  for (const a of anchors) {
-    onProgress?.(`Valhalla drive-time: ${a.label} (${driveMinutes[a.id]} min)`);
-    map[a.id] = await fetchValhallaIsochrone(a, driveMinutes[a.id]);
-    // Be polite to the public FOSSGIS demo server
-    await new Promise((r) => setTimeout(r, 400));
+  // Fetch a couple at a time — much faster than fully serial + long sleeps
+  const queue = [...anchors];
+  const workers = Math.min(2, queue.length);
+  async function worker() {
+    while (queue.length) {
+      const a = queue.shift();
+      if (!a) return;
+      onProgress?.(
+        `Valhalla drive-time: ${a.label} (${driveMinutes[a.id]} min)`,
+      );
+      map[a.id] = await fetchValhallaIsochrone(a, driveMinutes[a.id]);
+    }
   }
+  await Promise.all(Array.from({ length: workers }, () => worker()));
   return { map, mode: "valhalla" };
 }
