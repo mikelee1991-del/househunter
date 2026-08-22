@@ -1,12 +1,11 @@
 export function SuitabilityLegend() {
   return (
     <div className="suitability-legend">
-      <strong>Best areas (per address)</strong>
+      <strong>Best areas</strong>
       <p>
-        Peaks at listing addresses using your weighted mix of drive, quiet,
-        safety, walk, ocean view, sunset view, and air (see{" "}
-        <em>Best areas weights</em> in the criteria panel). Beachfront water
-        views and inland hill sunsets are weighted separately.
+        Continuous fit wash (drive, quiet, safety, walk, ocean, sunset, air)
+        clipped to your isochrones, with brighter peaks at strong listing
+        addresses. Adjust weights in the criteria panel.
       </p>
       <div
         className="suitability-legend-ramp"
