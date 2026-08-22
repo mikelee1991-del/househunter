@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { CircleMarker, Polygon, Tooltip } from "react-leaflet";
+import { CircleMarker, Polygon } from "react-leaflet";
 import {
   SUNSET_OCEAN_CONE_CENTER_DEG,
   SUNSET_OCEAN_CONE_HALF_DEG,
@@ -158,21 +158,7 @@ export function OceanViewshedHeatLayer({ enabled, listings }: Props) {
               opacity: 0.7,
               dashArray: placeholder ? "2 3" : undefined,
             }}
-          >
-            <Tooltip direction="top" offset={[0, -4]}>
-              {l.address}
-              <br />
-              {placeholder
-                ? "Ocean/sunset — GIS pending"
-                : `Ocean/sunset ${score}/100`}
-              {!placeholder && ov.summary ? (
-                <>
-                  <br />
-                  {ov.summary.replace(/^Ocean viewshed\s*/i, "")}
-                </>
-              ) : null}
-            </Tooltip>
-          </CircleMarker>
+          />
         );
       })}
     </>

@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo } from "react";
+import { useEffect, useState, useDeferredValue } from "react";
 import { ImageOverlay } from "react-leaflet";
 import type { SafetyTractsFile } from "../data/safetyTiers";
 import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
@@ -7,6 +7,7 @@ import {
   paintAreaMetricHeatmap,
   type AreaMetricId,
 } from "../lib/metricAreaHeatmap";
+import type { SuitabilityRaster } from "../lib/suitabilityHeatmap";
 import type { Anchor, Listing } from "../types";
 
 interface Props {
@@ -20,8 +21,8 @@ interface Props {
 }
 
 /**
- * Continuous area wash for a metric across the South Bay grid — any location,
- * not just listing pins. Clipped to the union of drive-time isochrones when ready.
+ * Continuous area wash — paints off the critical path and reuses cached
+ * rasters so switching Safety ↔ Walk ↔ Noise does not freeze the map.
  */
 export function ContinuousMetricHeatLayer({
   enabled,
@@ -34,20 +35,41 @@ export function ContinuousMetricHeatLayer({
 }: Props) {
   const deferredIso = useDeferredValue(isochrones);
   const deferredAnchors = useDeferredValue(anchors);
+  const [raster, setRaster] = useState<SuitabilityRaster | null>(null);
 
-  const raster = useMemo(() => {
-    if (!enabled) return null;
+  useEffect(() => {
+    if (!enabled) {
+      setRaster(null);
+      return;
+    }
+    // Wait for tracts on metrics that need them (safety/air/walk/…)
+    const needsTracts = metric === "safety" || metric === "air" || metric === "walk";
+    if (needsTracts && !safetyTracts && !airTracts) return;
+
+    let cancelled = false;
     const havePolys =
       deferredAnchors.length > 0 &&
       deferredAnchors.some((a) => !!deferredIso[a.id]);
-    return paintAreaMetricHeatmap(
-      metric,
-      listings,
-      deferredAnchors,
-      safetyTracts,
-      airTracts,
-      havePolys ? deferredIso : undefined,
-    );
+
+    const run = () => {
+      if (cancelled) return;
+      const next = paintAreaMetricHeatmap(
+        metric,
+        listings,
+        deferredAnchors,
+        safetyTracts,
+        airTracts,
+        havePolys ? deferredIso : undefined,
+      );
+      if (!cancelled) setRaster(next);
+    };
+
+    // Yield to the browser so the metric tab click stays snappy
+    const id = window.setTimeout(run, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
   }, [
     enabled,
     metric,

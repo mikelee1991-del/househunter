@@ -312,7 +312,7 @@ export function MapView({
           <Marker
             key={l.id}
             position={[l.lat, l.lng]}
-            icon={homeIcon(l, isSelected, metricLayer)}
+            icon={homeIcon(l, isSelected, "off")}
             zIndexOffset={
               isSelected ? 2000 : l.flagged ? 1500 : pendingLabel ? 1200 : 1000
             }

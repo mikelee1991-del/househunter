@@ -3,10 +3,9 @@ export function SuitabilityLegend() {
     <div className="suitability-legend">
       <strong>Best areas (per address)</strong>
       <p>
-        Each disc is one listing’s location fit (drive, noise, safety, walk,
-        ocean/sunset GIS, air). Larger / brighter = better — beachfront
-        open-wedge homes like The Strand should pop; blocked lots stay small or
-        hidden.
+        Peaks at listing addresses — drive, noise, safety, walk, ocean/sunset
+        GIS, and air at that lot. Beachfront open-wedge homes (e.g. The Strand)
+        should read brightest; blocked lots stay faint or hidden.
       </p>
       <div
         className="suitability-legend-ramp"
