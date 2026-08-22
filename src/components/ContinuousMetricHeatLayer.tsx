@@ -42,9 +42,8 @@ export function ContinuousMetricHeatLayer({
       setRaster(null);
       return;
     }
-    // Walk needs neighborhood/tract context baked into the base grid
-    const needsTracts = metric === "walk";
-    if (needsTracts && !safetyTracts && !airTracts) return;
+    // Noise paints direct CNEL — no tract wait
+    if (metric !== "noise" && !safetyTracts && !airTracts) return;
 
     let cancelled = false;
     const havePolys =

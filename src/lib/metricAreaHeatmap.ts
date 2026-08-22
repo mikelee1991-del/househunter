@@ -31,11 +31,11 @@ import { walkIndexRgba } from "./walkHeatmap";
 
 /**
  * Neighborhood-readable grid over SUITABILITY_BOUNDS (~40×32 km).
- * 280×210 ≈ 145–155 m cells — block/tract edges stay sharp without freezing
- * metric switches (paint cache still keys on dims).
+ * 320×240 ≈ 125–135 m cells. Noise uses direct CNEL paint (no tract PIP);
+ * Safety/Air/Walk use sharp polygons instead of this raster.
  */
-const AREA_COLS = 280;
-const AREA_ROWS = 210;
+const AREA_COLS = 320;
+const AREA_ROWS = 240;
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
@@ -259,14 +259,18 @@ export function paintAreaMetricHeatmap(
   const hit = paintCache.get(key);
   if (hit) return hit;
 
+  let raster: SuitabilityRaster;
+
+  if (metric === "noise") {
+    // Direct CNEL sampling — ~1s at 320×240; skip expensive tract PIP base.
+    raster = paintNoiseAreaDirect(anchors, isochrones, AREA_COLS, AREA_ROWS);
+  } else {
   const cells = getCachedHeatmapBase(
     listings,
     anchors,
     safetyTracts,
     airTracts,
   );
-
-  let raster: SuitabilityRaster;
 
   if (metric === "safety") {
     raster = paintCells(
@@ -293,16 +297,6 @@ export function paintAreaMetricHeatmap(
       cells,
       (c) => clamp((c.walkIndex / 20) * 100, 0, 100),
       (score) => walkIndexRgba((score / 100) * 19 + 1),
-      anchors,
-      isochrones,
-      AREA_COLS,
-      AREA_ROWS,
-    );
-  } else if (metric === "noise") {
-    raster = paintCells(
-      cells,
-      (c) => quietScoreFromCnel(c.noiseCnel),
-      quietRgba,
       anchors,
       isochrones,
       AREA_COLS,
@@ -356,6 +350,7 @@ export function paintAreaMetricHeatmap(
       AREA_ROWS,
     );
   }
+  } // end non-noise
 
   if (paintCache.size >= PAINT_CACHE_MAX) {
     const first = paintCache.keys().next().value;

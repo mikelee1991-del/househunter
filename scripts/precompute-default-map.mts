@@ -48,8 +48,8 @@ const ROOT = join(__dirname, "..");
 const OUT_ISO = join(ROOT, "public/data/isochrones-default.json");
 const OUT_SUIT = join(ROOT, "public/data/suitability-default.json");
 
-const COLS = 240;
-const ROWS = 180;
+const COLS = 280;
+const ROWS = 210;
 
 async function main() {
   mkdirSync(dirname(OUT_ISO), { recursive: true });

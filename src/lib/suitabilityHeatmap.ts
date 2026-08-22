@@ -66,9 +66,9 @@ export interface SuitabilityRaster {
   peakMean: number;
 }
 
-/** Live Best-areas wash — ~165–190 m cells; pack must match or be rejected. */
-export const DEFAULT_HEATMAP_COLS = 240;
-export const DEFAULT_HEATMAP_ROWS = 180;
+/** Live Best-areas wash — ~145–155 m cells with spatial-indexed tract PIP. */
+export const DEFAULT_HEATMAP_COLS = 280;
+export const DEFAULT_HEATMAP_ROWS = 210;
 const DEFAULT_COLS = DEFAULT_HEATMAP_COLS;
 const DEFAULT_ROWS = DEFAULT_HEATMAP_ROWS;
 
@@ -78,6 +78,12 @@ function clamp(n: number, lo: number, hi: number) {
 
 function nearestCoastKm(lat: number, lng: number): number {
   let best = Infinity;
+  // Prefilter: coastline is sparse; skip points > ~0.15° (~16 km) away
+  for (const [clng, clat] of SOUTH_BAY_COASTLINE) {
+    if (Math.abs(clat - lat) > 0.15 || Math.abs(clng - lng) > 0.15) continue;
+    best = Math.min(best, haversineKm(lat, lng, clat, clng));
+  }
+  if (best < Infinity) return best;
   for (const [clng, clat] of SOUTH_BAY_COASTLINE) {
     best = Math.min(best, haversineKm(lat, lng, clat, clng));
   }
@@ -94,9 +100,15 @@ export function addressLocalScore(
   samples: { lat: number; lng: number; score: number }[],
   maxKm = 0.11,
 ): number | null {
+  if (!samples.length) return null;
+  // Coarse prefilter: ~0.002° ≈ 220 m — skip far samples without haversine
+  const dLatMax = maxKm / 111;
+  const dLngMax = maxKm / (111 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
   let best: { lat: number; lng: number; score: number } | null = null;
   let bestD = Infinity;
   for (const s of samples) {
+    if (Math.abs(s.lat - lat) > dLatMax) continue;
+    if (Math.abs(s.lng - lng) > dLngMax) continue;
     const d = haversineKm(lat, lng, s.lat, s.lng);
     if (d < bestD) {
       bestD = d;
@@ -123,11 +135,13 @@ export function oceanProxyAt(
   lng: number,
   samples: HeatmapOceanSample[],
 ): number {
+  const coastKm = nearestCoastKm(lat, lng);
+  // Far inland: skip sample scan (no Pacific LOS invent)
+  if (coastKm > 12) {
+    return Math.round(clamp((1 - coastKm / 7.5) * 35, 0, 35));
+  }
   const local = addressLocalScore(lat, lng, samples, 0.18);
   if (local != null) return local;
-
-  // Far from any measured lot: weak coast-only hint (ocean needs near-shore)
-  const coastKm = nearestCoastKm(lat, lng);
   return Math.round(clamp((1 - coastKm / 7.5) * 35, 0, 35));
 }
 
@@ -137,10 +151,12 @@ export function sunsetProxyAt(
   lng: number,
   samples: HeatmapSunsetSample[],
 ): number {
+  const coastKm = nearestCoastKm(lat, lng);
+  if (coastKm > 28) {
+    return Math.round(clamp((1 - coastKm / 22) * 40, 0, 40));
+  }
   const local = addressLocalScore(lat, lng, samples, 0.22);
   if (local != null) return local;
-
-  const coastKm = nearestCoastKm(lat, lng);
   return Math.round(clamp((1 - coastKm / 22) * 40, 0, 40));
 }
 
@@ -159,12 +175,76 @@ const NEIGHBORHOOD_RINGS: NbRing[] = NEIGHBORHOOD_LIVABILITY.map((n) => ({
 type TractRing = {
   safetyScore: number;
   rings: [number, number][][];
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
 };
 
 type AirRing = {
   airQualityScore: number;
   rings: [number, number][][];
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
 };
+
+function ringBBox(rings: [number, number][][]): {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+} {
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  for (const ring of rings) {
+    for (const [lng, lat] of ring) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+  }
+  return { minLat, maxLat, minLng, maxLng };
+}
+
+/** ~2.2 km cells — cuts naive O(cells×tracts) PIP to nearby candidates. */
+const SPATIAL_CELL_DEG = 0.02;
+
+type SpatialBucket<T> = Map<string, T[]>;
+
+function spatialKey(lat: number, lng: number): string {
+  const r = Math.floor(lat / SPATIAL_CELL_DEG);
+  const c = Math.floor(lng / SPATIAL_CELL_DEG);
+  return `${r}:${c}`;
+}
+
+function indexByBBox<T extends { minLat: number; maxLat: number; minLng: number; maxLng: number }>(
+  items: T[],
+): SpatialBucket<T> {
+  const buckets: SpatialBucket<T> = new Map();
+  for (const item of items) {
+    const r0 = Math.floor(item.minLat / SPATIAL_CELL_DEG);
+    const r1 = Math.floor(item.maxLat / SPATIAL_CELL_DEG);
+    const c0 = Math.floor(item.minLng / SPATIAL_CELL_DEG);
+    const c1 = Math.floor(item.maxLng / SPATIAL_CELL_DEG);
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        const k = `${r}:${c}`;
+        let list = buckets.get(k);
+        if (!list) {
+          list = [];
+          buckets.set(k, list);
+        }
+        list.push(item);
+      }
+    }
+  }
+  return buckets;
+}
 
 function tractRings(tracts: SafetyTractsFile): TractRing[] {
   return tracts.features.map((f) => {
@@ -173,26 +253,33 @@ function tractRings(tracts: SafetyTractsFile): TractRing[] {
       g.type === "Polygon"
         ? [g.coordinates[0] as [number, number][]]
         : (g.coordinates as [number, number][][][]).map((poly) => poly[0]);
-    return { safetyScore: f.properties.safetyScore, rings };
+    const bbox = ringBBox(rings);
+    return { safetyScore: f.properties.safetyScore, rings, ...bbox };
   });
 }
 
 function airRings(air: AirQualityTractsFile): AirRing[] {
   return air.tracts
     .filter((t) => t.airQualityScore != null)
-    .map((t) => ({
-      airQualityScore: t.airQualityScore as number,
+    .map((t) => {
       // rings are [lat, lng][]; pointInRing expects [lng, lat]
-      rings: t.rings.map((ring) =>
+      const rings = t.rings.map((ring) =>
         ring.map(([lat, lng]) => [lng, lat] as [number, number]),
-      ),
-    }));
+      );
+      const bbox = ringBBox(rings);
+      return {
+        airQualityScore: t.airQualityScore as number,
+        rings,
+        ...bbox,
+      };
+    });
 }
 
 function livabilityAt(
   lat: number,
   lng: number,
   tracts: TractRing[] | null,
+  tractIndex: SpatialBucket<TractRing> | null,
 ): { safetyScore: number; walkIndex: number } {
   let walkIndex = 11;
   for (const n of NEIGHBORHOOD_RINGS) {
@@ -205,7 +292,22 @@ function livabilityAt(
     }
   }
 
-  if (tracts) {
+  if (tracts && tractIndex) {
+    const candidates = tractIndex.get(spatialKey(lat, lng));
+    if (candidates) {
+      for (const t of candidates) {
+        if (
+          lat >= t.minLat &&
+          lat <= t.maxLat &&
+          lng >= t.minLng &&
+          lng <= t.maxLng &&
+          t.rings.some((ring) => pointInRing(lng, lat, ring))
+        ) {
+          return { safetyScore: t.safetyScore, walkIndex };
+        }
+      }
+    }
+  } else if (tracts) {
     for (const t of tracts) {
       if (t.rings.some((ring) => pointInRing(lng, lat, ring))) {
         return { safetyScore: t.safetyScore, walkIndex };
@@ -221,8 +323,28 @@ function livabilityAt(
   return { safetyScore: 62, walkIndex: 10 };
 }
 
-function airAt(lat: number, lng: number, tracts: AirRing[] | null): number {
-  if (tracts) {
+function airAt(
+  lat: number,
+  lng: number,
+  tracts: AirRing[] | null,
+  airIndex: SpatialBucket<AirRing> | null,
+): number {
+  if (tracts && airIndex) {
+    const candidates = airIndex.get(spatialKey(lat, lng));
+    if (candidates) {
+      for (const t of candidates) {
+        if (
+          lat >= t.minLat &&
+          lat <= t.maxLat &&
+          lng >= t.minLng &&
+          lng <= t.maxLng &&
+          t.rings.some((ring) => pointInRing(lng, lat, ring))
+        ) {
+          return t.airQualityScore;
+        }
+      }
+    }
+  } else if (tracts) {
     for (const t of tracts) {
       if (t.rings.some((ring) => pointInRing(lng, lat, ring))) {
         return t.airQualityScore;
@@ -284,15 +406,17 @@ export function buildHeatmapBase(
   const { south, west, north, east } = SUITABILITY_BOUNDS;
   const samples = oceanSamplesFromListings(listings);
   const sunsetSamples = sunsetSamplesFromListings(listings);
-  const tractIndex = tracts ? tractRings(tracts) : null;
-  const airIndex = airTracts ? airRings(airTracts) : null;
+  const tractList = tracts ? tractRings(tracts) : null;
+  const airList = airTracts ? airRings(airTracts) : null;
+  const tractIndex = tractList ? indexByBBox(tractList) : null;
+  const airIndex = airList ? indexByBBox(airList) : null;
   const cells: HeatmapCellBase[] = new Array(cols * rows);
 
   for (let row = 0; row < rows; row++) {
     const lat = north - ((row + 0.5) / rows) * (north - south);
     for (let col = 0; col < cols; col++) {
       const lng = west + ((col + 0.5) / cols) * (east - west);
-      const liv = livabilityAt(lat, lng, tractIndex);
+      const liv = livabilityAt(lat, lng, tractList, tractIndex);
       const driveMins = {} as Record<AnchorId, number>;
       for (const a of anchors) {
         driveMins[a.id] = estimateDriveMinutes(lat, lng, a.lat, a.lng);
@@ -303,7 +427,7 @@ export function buildHeatmapBase(
         noiseCnel: estimateNoiseCnel(lat, lng),
         safetyScore: liv.safetyScore,
         walkIndex: liv.walkIndex,
-        airQualityScore: airAt(lat, lng, airIndex),
+        airQualityScore: airAt(lat, lng, airList, airIndex),
         oceanProxy: oceanProxyAt(lat, lng, samples),
         sunsetProxy: sunsetProxyAt(lat, lng, sunsetSamples),
         driveMins,

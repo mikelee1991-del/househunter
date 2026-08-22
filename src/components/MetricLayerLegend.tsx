@@ -65,11 +65,11 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "walk") {
     return (
       <div className="safety-legend">
-        <strong>Walkability (area)</strong>
+        <strong>Walkability (neighborhood)</strong>
         <p>
-          {AREA_NOTE} Neighborhood + EPA-style walk index at every cell inside
-          the drive-time polygons, with address-local halos where we have
-          listings.
+          Neighborhood polygons with EPA listing averages where available
+          (fallback walk index otherwise), plus address-local halos at listing
+          pins. Sharp edges — not a stair-step raster.
         </p>
         <ul>
           <li>

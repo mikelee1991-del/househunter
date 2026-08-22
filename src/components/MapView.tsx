@@ -220,12 +220,11 @@ export function MapView({
   const showSafety = metricLayer === "safety";
   const showAir = metricLayer === "air";
   const showWalk = metricLayer === "walk";
-  // Tract choropleth for census metrics (sharp edges, not stair-step raster).
-  const showTractMetric = showSafety || showAir;
-  // Continuous field washes — walk + noise (not ocean/sunset coast-distance proxy).
-  const showAreaMetric = showWalk || showNoise;
-  // Address-local halos: condition always; ocean/sunset/noise on top of GIS dots /
-  // corridor wash so Strand vs second-row and quiet vs freeway read at block scale.
+  // Tract / neighborhood choropleth (sharp edges, not stair-step raster).
+  const showTractMetric = showSafety || showAir || showWalk;
+  // Continuous field wash — noise only (road/CNEL model; fast direct paint).
+  const showAreaMetric = showNoise;
+  // Address-local halos: condition; ocean/sunset/noise/walk overlays.
   const showAddressHeat =
     showCondition || showOcean || showSunset || showNoise || showWalk;
   // Tint pins for condition so scores read without relying on a wash.
@@ -268,15 +267,16 @@ export function MapView({
         onNeedLiveCompute={onNeedLiveHeatTracts}
       />
 
-      {/* Sharp tract polygons for Safety / Air (tract-scale source data) */}
+      {/* Sharp polygons for Safety / Air / Walk (tract or neighborhood scale) */}
       <TractMetricLayer
         enabled={showTractMetric}
-        mode={showAir ? "air" : "safety"}
+        mode={showAir ? "air" : showWalk ? "walk" : "safety"}
         safetyTracts={safetyTracts}
         airTracts={airTracts}
+        listings={allListings}
       />
 
-      {/* Continuous field washes — walk + noise, clipped to isochrone union */}
+      {/* Continuous noise wash — high-res direct CNEL paint */}
       <ContinuousMetricHeatLayer
         enabled={showAreaMetric}
         metric={metricLayer as AreaMetricId}
