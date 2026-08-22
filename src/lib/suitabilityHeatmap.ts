@@ -820,24 +820,24 @@ export function paintAddressSuitabilityHeatmap(
   for (const l of listings) {
     if (!Number.isFinite(l.lat) || !Number.isFinite(l.lng)) continue;
     const score = scoreListingLocation(l, criteria, anchors, isochrones);
-    // Only solid fits — keeps the canvas sparse so Strand peaks read
-    if (score < 72) continue;
+    // Visible peaks — was 72 + steep alpha, which left the layer blank
+    if (score < 58) continue;
     samples.push({ lat: l.lat, lng: l.lng, score });
   }
 
   return paintAddressHalos(samples, suitabilityHaloRgba, {
-    radiusKm: (score) => (score >= 84 ? 0.2 : score >= 78 ? 0.14 : 0.08),
+    radiusKm: (score) => (score >= 84 ? 0.22 : score >= 72 ? 0.16 : 0.1),
     cols: 640,
     rows: 480,
   });
 }
 
-/** Steep alpha: mid fits stay faint; Strand-class scores blaze. */
+/** Soft then bright: mid fits readable; Strand-class scores blaze. */
 export function suitabilityHaloRgba(
   score: number,
 ): [number, number, number, number] {
-  const t = clamp((score - 70) / 25, 0, 1); // 70→0, 95→1
-  const a = Math.round(Math.pow(t, 1.25) * 255);
+  const t = clamp((score - 55) / 40, 0, 1); // 55→0, 95→1
+  const a = Math.round((0.25 + Math.pow(t, 1.1) * 0.75) * 255);
   const [r, g, b] = scoreRgba(score);
   return [r, g, b, a];
 }
