@@ -42,9 +42,8 @@ export function ContinuousMetricHeatLayer({
       setRaster(null);
       return;
     }
-    // Wait for tracts on metrics that need them (safety/air/walk/…)
-    const needsTracts = metric === "safety" || metric === "air" || metric === "walk";
-    if (needsTracts && !safetyTracts && !airTracts) return;
+    // Noise paints direct CNEL — no tract wait
+    if (metric !== "noise" && !safetyTracts && !airTracts) return;
 
     let cancelled = false;
     const havePolys =

@@ -101,9 +101,10 @@ interface Props {
 
 /**
  * GIS ocean or sunset overlays on analyzed addresses:
- * 1) Continuous wash comes from ContinuousMetricHeatLayer
+ * 1) Address-local heat (AddressMetricHeatLayer) + these dots/fans
  * 2) Dot on each lot colored by DEM+building LOS score
  * 3) Short fan only on strong clear wedges (≥60)
+ * Regional coast-distance wash is intentionally not used — it is not LOS.
  */
 export function OceanViewshedHeatLayer({
   enabled,
