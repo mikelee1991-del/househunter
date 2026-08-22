@@ -9,6 +9,7 @@ import { chromium } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { estimateNoiseCnel } from "../src/data/ambientNoise.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -52,18 +53,6 @@ const SOUTH_BAY_BOUNDS = {
   minLng: -118.55,
   maxLng: -118.25,
 };
-
-function estimateNoiseCnel(lat, lng) {
-  const dLat = lat - 33.942;
-  const dLng = (lng + 118.4085) * Math.cos((lat * Math.PI) / 180);
-  const distKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111;
-  if (distKm < 3.5) return 75;
-  if (distKm < 5.5) return 70;
-  if (distKm < 7.5) return 65;
-  if (distKm < 10) return Math.round(55 + (10 - distKm) * 2);
-  if (distKm < 14) return Math.round(45 + (14 - distKm));
-  return 40;
-}
 
 function inSouthBay(lat, lng) {
   return (

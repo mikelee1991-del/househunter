@@ -35,21 +35,21 @@ function run(cmd, args, env = {}) {
 
 async function main() {
   // Sereno is the most reliable free CRMLS surface
-  await run("node", ["scripts/scrape-sereno-areas.mjs"]);
+  await run("npx", ["tsx", "scripts/scrape-sereno-areas.mjs"]);
 
   const serenoOnly = process.env.INGEST_SERENO_ONLY === "1";
 
   if (!serenoOnly) {
     // Redfin merge — keep going even if bot-walled
     try {
-      await run("node", ["scripts/scrape-redfin-market.mjs"]);
+      await run("npx", ["tsx", "scripts/scrape-redfin-market.mjs"]);
     } catch (e) {
       console.warn("Redfin scrape failed (inventory kept):", e.message);
     }
 
     // MB Confidential — often blocked; never fatal
     try {
-      await run("node", ["scripts/scrape-mbconfidential.mjs"]);
+      await run("npx", ["tsx", "scripts/scrape-mbconfidential.mjs"]);
     } catch (e) {
       console.warn("MB Confidential scrape failed (inventory kept):", e.message);
     }
@@ -62,6 +62,8 @@ async function main() {
   }
 
   if (process.env.INGEST_PRECOMPUTE === "1") {
+    // Shared airport+highway model — scrapes must not leave LAX-only CNEL
+    await run("npm", ["run", "ingest:noise"]);
     await run("npx", ["tsx", "scripts/precompute-listing-scores.ts"]);
     await run("npx", ["tsx", "scripts/enrich-listing-condition.mts"]);
     await run("node", ["scripts/enrich-listing-air.mjs"]);

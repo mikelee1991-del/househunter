@@ -152,7 +152,7 @@ export function buildParameterBars(
 
   bars.push({
     id: "noise",
-    label: "Quiet (vs LAX)",
+    label: "Quiet",
     valueLabel: `~${listing.noiseCnel} CNEL`,
     fill: quietScore(listing.noiseCnel),
     threshold: quietThreshold(criteria.maxNoiseCnel),
