@@ -21,12 +21,15 @@ export function paintAddressHalos(
   samples: AddressHeatSample[],
   rgba: RgbaFn,
   opts?: {
-    radiusKm?: number;
+    radiusKm?: number | ((score: number) => number);
     cols?: number;
     rows?: number;
   },
 ): SuitabilityRaster {
-  const radiusKm = opts?.radiusKm ?? 0.04;
+  const radiusOf =
+    typeof opts?.radiusKm === "function"
+      ? opts.radiusKm
+      : () => (typeof opts?.radiusKm === "number" ? opts.radiusKm : 0.04);
   const cols = opts?.cols ?? 720;
   const rows = opts?.rows ?? 540;
   const { south, west, north, east } = SUITABILITY_BOUNDS;
@@ -49,7 +52,6 @@ export function paintAddressHalos(
   }
 
   const img = ctx.createImageData(cols, rows);
-  // Zero-fill (transparent)
   for (let i = 0; i < img.data.length; i++) img.data[i] = 0;
 
   if (!samples.length) {
@@ -68,22 +70,25 @@ export function paintAddressHalos(
 
   const latSpan = north - south;
   const lngSpan = east - west;
-  // Approx degrees for radius (for pixel window culling)
-  const dLat = radiusKm / 111;
   const midLat = (north + south) / 2;
-  const dLng = radiusKm / (111 * Math.cos((midLat * Math.PI) / 180));
 
   let peakSum = 0;
   let peakN = 0;
 
-  // For each sample, stamp a soft disc onto nearby pixels
-  for (const s of samples) {
+  // Paint weak samples first, standouts last so bright cores win
+  const ordered = [...samples].sort((a, b) => a.score - b.score);
+
+  for (const s of ordered) {
     if (s.score >= 55) {
       peakSum += s.score;
       peakN += 1;
     }
     const [br, bg, bb, ba] = rgba(s.score);
     if (ba <= 0) continue;
+
+    const radiusKm = Math.max(0.02, radiusOf(s.score));
+    const dLat = radiusKm / 111;
+    const dLng = radiusKm / (111 * Math.cos((midLat * Math.PI) / 180));
 
     const row0 = Math.max(
       0,
@@ -108,13 +113,11 @@ export function paintAddressHalos(
         const lng = west + ((col + 0.5) / cols) * lngSpan;
         const d = haversineKm(lat, lng, s.lat, s.lng);
         if (d > radiusKm) continue;
-        // Smooth falloff to parcel edge
         const t = 1 - d / radiusKm;
         const fall = t * t;
         const a = Math.round(ba * fall);
         if (a <= 0) continue;
         const px = (row * cols + col) * 4;
-        // Alpha-composite over existing (nearest listing wins if stronger)
         const oa = img.data[px + 3] / 255;
         const na = a / 255;
         const outA = na + oa * (1 - na);

@@ -1,14 +1,10 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { ImageOverlay } from "react-leaflet";
+import { useDeferredValue, useMemo } from "react";
+import { CircleMarker, Tooltip } from "react-leaflet";
 import type { SafetyTractsFile } from "../data/safetyTiers";
 import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { IsochroneMap } from "../hooks/useIsochrones";
-import { tryDefaultSuitabilityRaster } from "../lib/defaultMapCache";
-import {
-  buildHeatmapBase,
-  paintSuitabilityHeatmap,
-  type SuitabilityRaster,
-} from "../lib/suitabilityHeatmap";
+import { metricScoreColor } from "../lib/mapMetrics";
+import { scoreListingLocation } from "../lib/suitabilityHeatmap";
 import type { Anchor, Criteria, Listing } from "../types";
 
 interface Props {
@@ -19,13 +15,15 @@ interface Props {
   listings: Listing[];
   safetyTracts: SafetyTractsFile | null;
   airTracts: AirQualityTractsFile | null;
-  /** Fired when defaults miss and live tract-based paint is required */
   onNeedLiveCompute?: () => void;
 }
 
+type ScoredHit = { id: string; lat: number; lng: number; score: number; address: string };
+
 /**
- * High-res canvas heatmap of blended location suitability.
- * On default anchors/criteria, paints from a shipped score grid (no tract PIP).
+ * Best areas: one marker glow per listing address.
+ * Open-wedge Strand lots get large bright discs; blocked / mediocre lots stay
+ * small or hidden — never a neighborhood wash.
  */
 export function SuitabilityHeatLayer({
   enabled,
@@ -33,88 +31,71 @@ export function SuitabilityHeatLayer({
   anchors,
   isochrones,
   listings,
-  safetyTracts,
-  airTracts,
-  onNeedLiveCompute,
 }: Props) {
   const deferredCriteria = useDeferredValue(criteria);
   const deferredIso = useDeferredValue(isochrones);
   const deferredAnchors = useDeferredValue(anchors);
 
-  const [precomputed, setPrecomputed] = useState<SuitabilityRaster | null>(
-    null,
-  );
-  const [precomputeChecked, setPrecomputeChecked] = useState(false);
-
-  useEffect(() => {
-    if (!enabled) {
-      setPrecomputed(null);
-      setPrecomputeChecked(false);
-      return;
-    }
-    let cancelled = false;
-    setPrecomputeChecked(false);
-    void (async () => {
-      const raster = await tryDefaultSuitabilityRaster(anchors, criteria);
-      if (cancelled) return;
-      setPrecomputed(raster);
-      setPrecomputeChecked(true);
-      if (!raster) onNeedLiveCompute?.();
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, anchors, criteria, onNeedLiveCompute]);
-
-  const base = useMemo(() => {
-    if (!enabled || !precomputeChecked || precomputed) return null;
-    if (!safetyTracts && !airTracts) return null;
-    return buildHeatmapBase(
-      listings,
-      safetyTracts,
-      deferredAnchors,
-      airTracts,
-    );
-  }, [
-    enabled,
-    precomputeChecked,
-    precomputed,
-    listings,
-    safetyTracts,
-    airTracts,
-    deferredAnchors,
-  ]);
-
-  const liveRaster = useMemo(() => {
-    if (!enabled || precomputed || !base) return null;
+  const hits = useMemo(() => {
+    if (!enabled || !listings.length) return [] as ScoredHit[];
     const havePolys =
       deferredAnchors.length > 0 &&
       deferredAnchors.some((a) => !!deferredIso[a.id]);
-    return paintSuitabilityHeatmap(
-      base,
-      deferredCriteria,
-      deferredAnchors,
-      havePolys ? deferredIso : undefined,
-    );
-  }, [
-    enabled,
-    precomputed,
-    base,
-    deferredCriteria,
-    deferredAnchors,
-    deferredIso,
-  ]);
+    const iso = havePolys ? deferredIso : undefined;
+    const out: ScoredHit[] = [];
+    for (const l of listings) {
+      if (!Number.isFinite(l.lat) || !Number.isFinite(l.lng)) continue;
+      const score = scoreListingLocation(
+        l,
+        deferredCriteria,
+        deferredAnchors,
+        iso,
+      );
+      // Only show solid location fits so peaks read clearly
+      if (score < 68) continue;
+      out.push({
+        id: l.id,
+        lat: l.lat,
+        lng: l.lng,
+        score,
+        address: l.address,
+      });
+    }
+    // Paint weaker first so standouts sit on top
+    out.sort((a, b) => a.score - b.score);
+    return out;
+  }, [enabled, listings, deferredCriteria, deferredAnchors, deferredIso]);
 
-  const raster = precomputed ?? liveRaster;
-  if (!enabled || !raster?.url) return null;
+  if (!enabled || !hits.length) return null;
 
   return (
-    <ImageOverlay
-      url={raster.url}
-      bounds={raster.bounds}
-      opacity={0.55}
-      zIndex={330}
-      interactive={false}
-    />
+    <>
+      {hits.map((h) => {
+        const standout = h.score >= 82;
+        const strong = h.score >= 75;
+        const radius = standout ? 16 : strong ? 11 : 7;
+        const fillOpacity = standout ? 0.82 : strong ? 0.55 : 0.28;
+        return (
+          <CircleMarker
+            key={`suit-${h.id}`}
+            center={[h.lat, h.lng]}
+            radius={radius}
+            pathOptions={{
+              stroke: standout,
+              color: "#0b3d2e",
+              weight: standout ? 1.5 : 0,
+              fillColor: metricScoreColor(h.score),
+              fillOpacity,
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -4]}>
+              {h.address}
+              <br />
+              Location fit {Math.round(h.score)}
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
+    </>
   );
 }

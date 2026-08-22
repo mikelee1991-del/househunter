@@ -1,11 +1,12 @@
 export function SuitabilityLegend() {
   return (
     <div className="suitability-legend">
-      <strong>Best areas (region)</strong>
+      <strong>Best areas (per address)</strong>
       <p>
-        Continuous blended fit across the commute-reachable region (union of
-        isochrones) — drive, noise, safety, walk, ocean openness, air. Not
-        limited to for-sale or matching addresses; pins are inventory only.
+        Each disc is one listing’s location fit (drive, noise, safety, walk,
+        ocean/sunset GIS, air). Larger / brighter = better — beachfront
+        open-wedge homes like The Strand should pop; blocked lots stay small or
+        hidden.
       </p>
       <div
         className="suitability-legend-ramp"
