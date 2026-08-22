@@ -737,16 +737,15 @@ export function paintAddressSuitabilityHeatmap(
   for (const l of listings) {
     if (!Number.isFinite(l.lat) || !Number.isFinite(l.lng)) continue;
     const score = scoreListingLocation(l, criteria, anchors, isochrones);
-    // Skip dull lots so the map is peaks, not a mid-score smear
-    if (score < 55) continue;
+    // Only solid fits — keeps the canvas sparse so Strand peaks read
+    if (score < 72) continue;
     samples.push({ lat: l.lat, lng: l.lng, score });
   }
 
   return paintAddressHalos(samples, suitabilityHaloRgba, {
-    // Weak fits: tight; Strand-class: larger bright discs
-    radiusKm: (score) => (score >= 80 ? 0.18 : score >= 70 ? 0.12 : 0.07),
-    cols: 800,
-    rows: 600,
+    radiusKm: (score) => (score >= 84 ? 0.2 : score >= 78 ? 0.14 : 0.08),
+    cols: 640,
+    rows: 480,
   });
 }
 
@@ -754,8 +753,8 @@ export function paintAddressSuitabilityHeatmap(
 export function suitabilityHaloRgba(
   score: number,
 ): [number, number, number, number] {
-  const t = clamp((score - 52) / 40, 0, 1); // 52→0, 92→1
-  const a = Math.round(Math.pow(t, 1.45) * 255);
+  const t = clamp((score - 70) / 25, 0, 1); // 70→0, 95→1
+  const a = Math.round(Math.pow(t, 1.25) * 255);
   const [r, g, b] = scoreRgba(score);
   return [r, g, b, a];
 }

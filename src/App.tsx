@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, startTransition } from "react";
 import { CriteriaPanel } from "./components/CriteriaPanel";
 import { ListingCard } from "./components/ListingCard";
 import { LivabilityScatter } from "./components/LivabilityScatter";
@@ -20,6 +20,7 @@ import {
   getStoredOrsKey,
   setStoredOrsKey,
 } from "./lib/isochrone";
+import { prefetchHeatmapBase } from "./lib/metricAreaHeatmap";
 import { isPropertyListingUrl } from "./lib/listingUrl";
 import type { MapMetricLayer } from "./lib/mapMetrics";
 import { scoreListing } from "./lib/score";
@@ -52,6 +53,12 @@ export default function App() {
     () => () => setNeedLiveHeatTracts(true),
     [],
   );
+  /** Warm tract GeoJSON after first paint so metric switches do not hitch */
+  const [preloadTracts, setPreloadTracts] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setPreloadTracts(true), 600);
+    return () => window.clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +90,7 @@ export default function App() {
     progress: viewshedProgress,
   } = useOceanViewshed(listings, true);
   const loadTractsForMetric =
+    preloadTracts ||
     metricLayer === "safety" ||
     metricLayer === "air" ||
     metricLayer === "walk" ||
@@ -92,6 +100,16 @@ export default function App() {
     (metricLayer === "suitability" && needLiveHeatTracts);
   const { data: safetyTracts } = useSafetyTracts(loadTractsForMetric);
   const { data: airTracts } = useAirQualityTracts(loadTractsForMetric);
+
+  useEffect(() => {
+    if (!safetyTracts && !airTracts) return;
+    if (!listings.length) return;
+    const t = window.setTimeout(() => {
+      prefetchHeatmapBase(listings, anchors, safetyTracts, airTracts);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [safetyTracts, airTracts, listings, anchors]);
+
   const {
     isochrones,
     mode: isoMode,
@@ -265,7 +283,10 @@ export default function App() {
               Matches only
             </label>
             <span className="toolbar-label">Metric</span>
-            <MetricLayerTabs value={metricLayer} onChange={setMetricLayer} />
+            <MetricLayerTabs
+              value={metricLayer}
+              onChange={(id) => startTransition(() => setMetricLayer(id))}
+            />
           </div>
           {isoMode === "loading" && Object.keys(isochrones).length === 0 && (
             <div className="map-banner" role="status">

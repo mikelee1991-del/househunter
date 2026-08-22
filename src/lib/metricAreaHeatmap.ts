@@ -1,6 +1,9 @@
 /**
  * Continuous area metric washes (any location in the region — on-sale or not).
  * Optionally hard-clips to the union of drive-time isochrones.
+ *
+ * Caches the expensive tract PIP grid + painted rasters so switching map
+ * metrics stays responsive.
  */
 import { estimateNoiseCnel } from "../data/ambientNoise";
 import type { SafetyTractsFile } from "../data/safetyTiers";
@@ -24,11 +27,80 @@ import {
 } from "./suitabilityHeatmap";
 import { walkIndexRgba } from "./walkHeatmap";
 
-const AREA_COLS = 200;
-const AREA_ROWS = 150;
+/** Coarser than before — still fills the region, much faster to rebuild */
+const AREA_COLS = 120;
+const AREA_ROWS = 90;
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
+}
+
+type BaseCacheEntry = {
+  key: string;
+  cells: HeatmapCellBase[];
+};
+let baseCache: BaseCacheEntry | null = null;
+
+const paintCache = new Map<string, SuitabilityRaster>();
+const PAINT_CACHE_MAX = 12;
+
+function listingsFingerprint(listings: Listing[]): string {
+  // Cheap identity: count + first/last id + generated analysis stamp
+  if (!listings.length) return "0";
+  const a = listings[0];
+  const b = listings[listings.length - 1];
+  return `${listings.length}:${a.id}:${b.id}`;
+}
+
+function anchorsFingerprint(anchors: Anchor[]): string {
+  return anchors.map((a) => `${a.id}:${a.lat.toFixed(4)},${a.lng.toFixed(4)}`).join("|");
+}
+
+function isoFingerprint(
+  anchors: Anchor[],
+  isochrones: IsochroneMap | undefined,
+): string {
+  if (!isochrones) return "none";
+  return anchors
+    .map((a) => {
+      const f = isochrones[a.id];
+      if (!f) return `${a.id}:0`;
+      const rings = f.geometry?.coordinates;
+      const n = Array.isArray(rings) ? JSON.stringify(rings).length : 0;
+      return `${a.id}:${n}`;
+    })
+    .join("|");
+}
+
+export function getCachedHeatmapBase(
+  listings: Listing[],
+  anchors: Anchor[],
+  safetyTracts: SafetyTractsFile | null,
+  airTracts: AirQualityTractsFile | null,
+): HeatmapCellBase[] {
+  const key = [
+    listingsFingerprint(listings),
+    anchorsFingerprint(anchors),
+    safetyTracts?.generatedAt ?? "no-s",
+    safetyTracts?.features?.length ?? 0,
+    airTracts?.generatedAt ?? "no-a",
+    airTracts?.tractCount ?? airTracts?.tracts?.length ?? 0,
+    AREA_COLS,
+    AREA_ROWS,
+  ].join("::");
+
+  if (baseCache?.key === key) return baseCache.cells;
+
+  const cells = buildHeatmapBase(
+    listings,
+    safetyTracts,
+    anchors,
+    airTracts,
+    AREA_COLS,
+    AREA_ROWS,
+  );
+  baseCache = { key, cells };
+  return cells;
 }
 
 function paintCells(
@@ -56,12 +128,17 @@ function paintCells(
   });
   if (!ctx) return empty();
 
-  const clip =
-    isochrones &&
-    anchors.some((a) => !!isochrones[a.id])
-      ? (lat: number, lng: number) =>
-          pointInAnyIsochrone(lat, lng, anchors, isochrones!)
-      : null;
+  // Precompute clip mask once (Valhalla PIP is expensive per cell)
+  let clipMask: Uint8Array | null = null;
+  if (isochrones && anchors.some((a) => !!isochrones[a.id])) {
+    clipMask = new Uint8Array(cells.length);
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i];
+      clipMask[i] = pointInAnyIsochrone(c.lat, c.lng, anchors, isochrones)
+        ? 1
+        : 0;
+    }
+  }
 
   const img = ctx.createImageData(cols, rows);
   let peakSum = 0;
@@ -70,7 +147,7 @@ function paintCells(
   for (let i = 0; i < cells.length; i++) {
     const c = cells[i];
     const px = i * 4;
-    if (clip && !clip(c.lat, c.lng)) {
+    if (clipMask && !clipMask[i]) {
       img.data[px + 3] = 0;
       continue;
     }
@@ -99,15 +176,10 @@ function paintCells(
   };
 }
 
-/** Quiet score 0–100 → rgba (reuse score greens; louder = lower score). */
 function quietRgba(score: number): [number, number, number, number] {
   return scoreRgba(score);
 }
 
-/**
- * IDW condition surface from listing text scores — best available area model
- * when no tract condition layer exists.
- */
 function conditionScoreAt(
   lat: number,
   lng: number,
@@ -139,9 +211,28 @@ function conditionScoreAt(
 
 export type AreaMetricId = Exclude<MapMetricLayer, "off" | "suitability">;
 
+function paintKey(
+  metric: AreaMetricId,
+  listings: Listing[],
+  anchors: Anchor[],
+  safetyTracts: SafetyTractsFile | null,
+  airTracts: AirQualityTractsFile | null,
+  isochrones: IsochroneMap | undefined,
+): string {
+  return [
+    metric,
+    listingsFingerprint(listings),
+    anchorsFingerprint(anchors),
+    safetyTracts?.generatedAt ?? "no-s",
+    airTracts?.generatedAt ?? "no-a",
+    isoFingerprint(anchors, isochrones),
+  ].join("::");
+}
+
 /**
  * Paint a continuous South Bay wash for a metric. When isochrones are ready,
  * pixels outside the union of any drive-time polygon are transparent.
+ * Results are memoized so revisiting a metric is instant.
  */
 export function paintAreaMetricHeatmap(
   metric: AreaMetricId,
@@ -151,17 +242,28 @@ export function paintAreaMetricHeatmap(
   airTracts: AirQualityTractsFile | null,
   isochrones: IsochroneMap | undefined,
 ): SuitabilityRaster {
-  const cells = buildHeatmapBase(
+  const key = paintKey(
+    metric,
     listings,
-    safetyTracts,
     anchors,
+    safetyTracts,
     airTracts,
-    AREA_COLS,
-    AREA_ROWS,
+    isochrones,
+  );
+  const hit = paintCache.get(key);
+  if (hit) return hit;
+
+  const cells = getCachedHeatmapBase(
+    listings,
+    anchors,
+    safetyTracts,
+    airTracts,
   );
 
+  let raster: SuitabilityRaster;
+
   if (metric === "safety") {
-    return paintCells(
+    raster = paintCells(
       cells,
       (c) => c.safetyScore,
       scoreRgba,
@@ -170,10 +272,8 @@ export function paintAreaMetricHeatmap(
       AREA_COLS,
       AREA_ROWS,
     );
-  }
-
-  if (metric === "air") {
-    return paintCells(
+  } else if (metric === "air") {
+    raster = paintCells(
       cells,
       (c) => c.airQualityScore,
       scoreRgba,
@@ -182,10 +282,8 @@ export function paintAreaMetricHeatmap(
       AREA_COLS,
       AREA_ROWS,
     );
-  }
-
-  if (metric === "walk") {
-    return paintCells(
+  } else if (metric === "walk") {
+    raster = paintCells(
       cells,
       (c) => clamp((c.walkIndex / 20) * 100, 0, 100),
       (score) => walkIndexRgba((score / 100) * 19 + 1),
@@ -194,11 +292,8 @@ export function paintAreaMetricHeatmap(
       AREA_COLS,
       AREA_ROWS,
     );
-  }
-
-  if (metric === "noise") {
-    // Recompute quiet score from continuous noise model (already in cells)
-    return paintCells(
+  } else if (metric === "noise") {
+    raster = paintCells(
       cells,
       (c) => quietScoreFromCnel(c.noiseCnel),
       quietRgba,
@@ -207,16 +302,13 @@ export function paintAreaMetricHeatmap(
       AREA_COLS,
       AREA_ROWS,
     );
-  }
-
-  if (metric === "ocean") {
+  } else if (metric === "ocean") {
     const oceanSamples = oceanSamplesFromListings(listings);
-    return paintCells(
+    raster = paintCells(
       cells,
       (c) => oceanProxyAt(c.lat, c.lng, oceanSamples),
       (score) => {
         const [r, g, b] = oceanViewshedRgba(score);
-        // Stronger area wash alpha than listing dots
         const a = Math.round(110 + clamp(score / 100, 0, 1) * 100);
         return [r, g, b, a];
       },
@@ -225,28 +317,45 @@ export function paintAreaMetricHeatmap(
       AREA_COLS,
       AREA_ROWS,
     );
+  } else {
+    const condSamples: { lat: number; lng: number; score: number }[] = [];
+    for (const l of listings) {
+      const s = l.analysis?.condition?.score100;
+      if (typeof s === "number") {
+        condSamples.push({ lat: l.lat, lng: l.lng, score: s });
+      }
+    }
+    raster = paintCells(
+      cells,
+      (c) => conditionScoreAt(c.lat, c.lng, condSamples),
+      scoreRgba,
+      anchors,
+      isochrones,
+      AREA_COLS,
+      AREA_ROWS,
+    );
   }
 
-  // condition — IDW from listing condition scores
-  const condSamples: { lat: number; lng: number; score: number }[] = [];
-  for (const l of listings) {
-    const s = l.analysis?.condition?.score100;
-    if (typeof s === "number") {
-      condSamples.push({ lat: l.lat, lng: l.lng, score: s });
-    }
+  if (paintCache.size >= PAINT_CACHE_MAX) {
+    const first = paintCache.keys().next().value;
+    if (first) paintCache.delete(first);
   }
-  return paintCells(
-    cells,
-    (c) => conditionScoreAt(c.lat, c.lng, condSamples),
-    scoreRgba,
-    anchors,
-    isochrones,
-    AREA_COLS,
-    AREA_ROWS,
-  );
+  paintCache.set(key, raster);
+  return raster;
 }
 
-/** Convenience: continuous quiet wash using ambient model only (no base cells). */
+/** Warm the shared base grid off the critical path (e.g. after tracts load). */
+export function prefetchHeatmapBase(
+  listings: Listing[],
+  anchors: Anchor[],
+  safetyTracts: SafetyTractsFile | null,
+  airTracts: AirQualityTractsFile | null,
+): void {
+  if (!listings.length) return;
+  if (!safetyTracts && !airTracts) return;
+  getCachedHeatmapBase(listings, anchors, safetyTracts, airTracts);
+}
+
 export function paintNoiseAreaDirect(
   anchors: Anchor[],
   isochrones: IsochroneMap | undefined,
