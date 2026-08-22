@@ -12,6 +12,8 @@ import {
   type DefaultSuitabilityFile,
 } from "./defaultMapSignature";
 import {
+  DEFAULT_HEATMAP_COLS,
+  DEFAULT_HEATMAP_ROWS,
   paintScoresToRaster,
   type SuitabilityRaster,
 } from "./suitabilityHeatmap";
@@ -103,6 +105,14 @@ export async function tryDefaultSuitabilityRaster(
   if (!file?.scoresB64) return null;
   const live = buildDefaultMapSignature(anchors, criteria);
   if (!signaturesMatch(live, file.signature)) return null;
+  // Coarse legacy packs (e.g. 160×120) look blocky at Strand zoom — fall
+  // through to live paint at DEFAULT_HEATMAP_COLS/ROWS instead.
+  if (
+    file.cols < DEFAULT_HEATMAP_COLS ||
+    file.rows < DEFAULT_HEATMAP_ROWS
+  ) {
+    return null;
+  }
 
   const raw = scoresFromBase64(file.scoresB64);
   return paintScoresToRaster(raw, file.cols, file.rows, file.bounds);

@@ -23,9 +23,10 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "safety") {
     return (
       <div className="safety-legend">
-        <strong>Safety (area)</strong>
+        <strong>Safety (tract)</strong>
         <p>
-          {AREA_NOTE} Census-tract / neighborhood crime index at every cell.
+          Census-tract crime index drawn as sharp polygons — neighborhood
+          boundaries stay crisp at Strand zoom.
         </p>
         <ul>
           {SAFETY_TIERS.map((t) => (
@@ -43,9 +44,10 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "air") {
     return (
       <div className="safety-legend">
-        <strong>Air / pollution (area)</strong>
+        <strong>Air / pollution (tract)</strong>
         <p>
-          {AREA_NOTE} CalEnviroScreen burden by tract — higher = cleaner.
+          CalEnviroScreen burden by census tract (higher = cleaner) — sharp
+          polygon edges, not a coarse raster wash.
         </p>
         <ul>
           {SCORE_BANDS.map((b) => (
@@ -66,7 +68,8 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
         <strong>Walkability (area)</strong>
         <p>
           {AREA_NOTE} Neighborhood + EPA-style walk index at every cell inside
-          the drive-time polygons.
+          the drive-time polygons, with address-local halos where we have
+          listings.
         </p>
         <ul>
           <li>
@@ -101,7 +104,8 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
         <p>
           {AREA_NOTE} LAX CNEL contours (dashed) + freeway corridors (solid;
           PCH dashed). Wash takes the louder source, and energy-combines when
-          airport and highway are both ≥50 CNEL.
+          airport and highway are both ≥50 CNEL. Address-local quiet scores
+          sit on top at listing pins.
         </p>
         <ul>
           <li>
@@ -132,11 +136,12 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "ocean") {
     return (
       <div className="safety-legend">
-        <strong>Ocean view (area)</strong>
+        <strong>Ocean view (per address)</strong>
         <p>
-          Clear line-of-sight to Pacific water across the reachable region,
-          plus GIS dots/fans at analyzed coastal addresses. Blocked second-row
-          lots stay dark next to a Strand 100.
+          DEM + building line-of-sight at analyzed coastal lots — dots, short
+          fans on strong wedges, and address-local heat. Not a regional LOS
+          model; inland cells are not inventing Pacific water views. Strand
+          100 stays obvious next to a blocked second-row 0.
         </p>
         <ul>
           <li>
@@ -162,11 +167,12 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "sunset") {
     return (
       <div className="safety-legend">
-        <strong>Sunset view (area)</strong>
+        <strong>Sunset view (per address)</strong>
         <p>
-          Due-west horizon openness — elevated inland hills can score when
-          ridges do not block the western sky. Separate from beachfront ocean
-          water.
+          Due-west horizon openness from GIS at analyzed addresses — elevated
+          inland lots can score when ridges do not block the western sky.
+          Separate from beachfront ocean water; address heat + dots/fans only
+          (no coast-distance regional wash).
         </p>
         <ul>
           <li>

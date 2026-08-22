@@ -30,6 +30,7 @@ import { AddressMetricHeatLayer } from "./AddressMetricHeatLayer";
 import { ConditionHeatLayer } from "./ConditionHeatLayer";
 import { OceanViewshedHeatLayer } from "./OceanViewshedHeatLayer";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
+import { TractMetricLayer } from "./TractMetricLayer";
 import type { AreaMetricId } from "../lib/metricAreaHeatmap";
 import {
   conditionRgba,
@@ -216,14 +217,17 @@ export function MapView({
   const showOcean = metricLayer === "ocean";
   const showSunset = metricLayer === "sunset";
   const showCondition = metricLayer === "condition";
-  // Condition is listing-text, not a field model — address dots/halos only.
-  const showAreaMetric =
-    metricLayer === "safety" ||
-    metricLayer === "air" ||
-    metricLayer === "walk" ||
-    metricLayer === "noise" ||
-    metricLayer === "ocean" ||
-    metricLayer === "sunset";
+  const showSafety = metricLayer === "safety";
+  const showAir = metricLayer === "air";
+  const showWalk = metricLayer === "walk";
+  // Tract choropleth for census metrics (sharp edges, not stair-step raster).
+  const showTractMetric = showSafety || showAir;
+  // Continuous field washes — walk + noise (not ocean/sunset coast-distance proxy).
+  const showAreaMetric = showWalk || showNoise;
+  // Address-local halos: condition always; ocean/sunset/noise on top of GIS dots /
+  // corridor wash so Strand vs second-row and quiet vs freeway read at block scale.
+  const showAddressHeat =
+    showCondition || showOcean || showSunset || showNoise || showWalk;
   // Tint pins for condition so scores read without relying on a wash.
   const pinMetricLayer: MapMetricLayer =
     showCondition || showNoise ? metricLayer : "off";
@@ -264,7 +268,15 @@ export function MapView({
         onNeedLiveCompute={onNeedLiveHeatTracts}
       />
 
-      {/* Continuous area washes — any location, clipped to isochrone union */}
+      {/* Sharp tract polygons for Safety / Air (tract-scale source data) */}
+      <TractMetricLayer
+        enabled={showTractMetric}
+        mode={showAir ? "air" : "safety"}
+        safetyTracts={safetyTracts}
+        airTracts={airTracts}
+      />
+
+      {/* Continuous field washes — walk + noise, clipped to isochrone union */}
       <ContinuousMetricHeatLayer
         enabled={showAreaMetric}
         metric={metricLayer as AreaMetricId}
@@ -275,15 +287,27 @@ export function MapView({
         airTracts={airTracts}
       />
 
-      {/* Condition: address-local only (no neighborhood IDW wash) */}
+      {/* Address-local detail (condition; ocean/sunset/noise/walk overlays) */}
       <AddressMetricHeatLayer
-        enabled={showCondition}
-        metric="condition"
+        enabled={showAddressHeat}
+        metric={
+          showCondition
+            ? "condition"
+            : showOcean
+              ? "ocean"
+              : showSunset
+                ? "sunset"
+                : showNoise
+                  ? "noise"
+                  : showWalk
+                    ? "walk"
+                    : "condition"
+        }
         listings={allListings}
       />
       <ConditionHeatLayer enabled={showCondition} listings={allListings} />
 
-      {/* Ocean / sunset listing GIS dots/fans on top of continuous wash */}
+      {/* Ocean / sunset GIS dots/fans — no fake regional LOS wash */}
       <OceanViewshedHeatLayer
         enabled={showOcean || showSunset}
         listings={allListings}

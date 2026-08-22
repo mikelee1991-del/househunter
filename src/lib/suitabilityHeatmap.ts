@@ -66,8 +66,11 @@ export interface SuitabilityRaster {
   peakMean: number;
 }
 
-const DEFAULT_COLS = 160;
-const DEFAULT_ROWS = 120;
+/** Live Best-areas wash — ~165–190 m cells; pack must match or be rejected. */
+export const DEFAULT_HEATMAP_COLS = 240;
+export const DEFAULT_HEATMAP_ROWS = 180;
+const DEFAULT_COLS = DEFAULT_HEATMAP_COLS;
+const DEFAULT_ROWS = DEFAULT_HEATMAP_ROWS;
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));

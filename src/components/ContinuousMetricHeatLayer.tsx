@@ -42,8 +42,8 @@ export function ContinuousMetricHeatLayer({
       setRaster(null);
       return;
     }
-    // Wait for tracts on metrics that need them (safety/air/walk/…)
-    const needsTracts = metric === "safety" || metric === "air" || metric === "walk";
+    // Walk needs neighborhood/tract context baked into the base grid
+    const needsTracts = metric === "walk";
     if (needsTracts && !safetyTracts && !airTracts) return;
 
     let cancelled = false;

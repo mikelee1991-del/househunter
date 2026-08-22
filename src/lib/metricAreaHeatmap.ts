@@ -29,9 +29,13 @@ import {
 } from "./suitabilityHeatmap";
 import { walkIndexRgba } from "./walkHeatmap";
 
-/** Coarser than before — still fills the region, much faster to rebuild */
-const AREA_COLS = 120;
-const AREA_ROWS = 90;
+/**
+ * Neighborhood-readable grid over SUITABILITY_BOUNDS (~40×32 km).
+ * 280×210 ≈ 145–155 m cells — block/tract edges stay sharp without freezing
+ * metric switches (paint cache still keys on dims).
+ */
+const AREA_COLS = 280;
+const AREA_ROWS = 210;
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));

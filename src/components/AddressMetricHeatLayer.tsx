@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { ImageOverlay, Polyline, useMap, useMapEvents } from "react-leaflet";
-import { HIGHWAY_CORRIDORS } from "../data/ambientNoise";
+import { ImageOverlay, useMap, useMapEvents } from "react-leaflet";
 import {
   noiseCnelRgba,
   paintAddressHalos,
@@ -143,27 +142,12 @@ export function AddressMetricHeatLayer({ enabled, metric, listings }: Props) {
   if (!enabled || !raster?.url) return null;
 
   return (
-    <>
-      <ImageOverlay
-        url={raster.url}
-        bounds={raster.bounds}
-        opacity={0.95}
-        zIndex={360}
-        interactive={false}
-      />
-      {metric === "noise" &&
-        HIGHWAY_CORRIDORS.map((road) => (
-          <Polyline
-            key={road.id}
-            positions={road.coordinates.map(([lng, lat]) => [lat, lng])}
-            pathOptions={{
-              color: road.klass === "freeway" ? "#9b2c2c" : "#b85c38",
-              weight: road.klass === "freeway" ? 2 : 1.25,
-              opacity: 0.45,
-              dashArray: road.klass === "coastal" ? "4 6" : undefined,
-            }}
-          />
-        ))}
-    </>
+    <ImageOverlay
+      url={raster.url}
+      bounds={raster.bounds}
+      opacity={0.95}
+      zIndex={360}
+      interactive={false}
+    />
   );
 }
