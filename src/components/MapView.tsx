@@ -159,6 +159,7 @@ interface Props {
   satellite: boolean;
   safetyTracts: SafetyTractsFile | null;
   airTracts: AirQualityTractsFile | null;
+  onNeedLiveHeatTracts?: () => void;
 }
 
 export function MapView({
@@ -174,6 +175,7 @@ export function MapView({
   satellite,
   safetyTracts,
   airTracts,
+  onNeedLiveHeatTracts,
 }: Props) {
   const center = useMemo(() => {
     if (listings[0]) return [listings[0].lat, listings[0].lng] as [number, number];
@@ -227,6 +229,7 @@ export function MapView({
         listings={allListings}
         safetyTracts={safetyTracts}
         airTracts={airTracts}
+        onNeedLiveCompute={onNeedLiveHeatTracts}
       />
 
       {/* Continuous area washes — any location, clipped to isochrone union */}

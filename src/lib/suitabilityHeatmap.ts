@@ -507,6 +507,55 @@ export function paintSuitabilityHeatmap(
   };
 }
 
+/** Paint a precomputed score grid (0 = transparent; 1–101 = score+1). */
+export function paintScoresToRaster(
+  scores: Uint8Array,
+  cols: number,
+  rows: number,
+  bounds: SuitabilityBoundsLiteral = [
+    [SUITABILITY_BOUNDS.south, SUITABILITY_BOUNDS.west],
+    [SUITABILITY_BOUNDS.north, SUITABILITY_BOUNDS.east],
+  ],
+): SuitabilityRaster {
+  const canvas = document.createElement("canvas");
+  canvas.width = cols;
+  canvas.height = rows;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return { url: "", bounds, cols, rows, peakMean: 0 };
+  }
+  const img = ctx.createImageData(cols, rows);
+  let peakSum = 0;
+  let peakN = 0;
+  const n = Math.min(scores.length, cols * rows);
+  for (let i = 0; i < n; i++) {
+    const enc = scores[i];
+    const px = i * 4;
+    if (enc === 0) {
+      img.data[px + 3] = 0;
+      continue;
+    }
+    const score = enc - 1;
+    if (score >= 55) {
+      peakSum += score;
+      peakN += 1;
+    }
+    const [r, g, b, a] = suitabilityRgba(score);
+    img.data[px] = r;
+    img.data[px + 1] = g;
+    img.data[px + 2] = b;
+    img.data[px + 3] = a;
+  }
+  ctx.putImageData(img, 0, 0);
+  return {
+    url: canvas.toDataURL("image/png"),
+    bounds,
+    cols,
+    rows,
+    peakMean: peakN ? peakSum / peakN : 0,
+  };
+}
+
 /**
  * Ocean/sunset openness colormap: blocked (dark slate, still visible) →
  * usable teal → open green. Low scores stay opaque so every analyzed address

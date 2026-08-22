@@ -520,6 +520,37 @@ p {
   margin-top: 0.35rem;
 }
 
+/* Non-blocking isochrone status — map stays usable underneath */
+.map-banner {
+  position: absolute;
+  z-index: 450;
+  top: 0.65rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(420px, calc(100% - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border: 1px solid var(--stroke);
+  box-shadow: 0 1px 6px color-mix(in srgb, var(--ink) 12%, transparent);
+  pointer-events: none;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+.map-banner-sub {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.map-banner-quiet {
+  opacity: 0.85;
+}
+
 .accent-hint {
   color: var(--accent) !important;
 }
