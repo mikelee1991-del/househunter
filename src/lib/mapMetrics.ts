@@ -7,6 +7,7 @@ export type MapMetricLayer =
   | "air"
   | "walk"
   | "ocean"
+  | "sunset"
   | "condition"
   | "noise"
   | "suitability";
@@ -16,7 +17,8 @@ export const MAP_METRIC_OPTIONS: { id: MapMetricLayer; label: string }[] = [
   { id: "safety", label: "Safety" },
   { id: "air", label: "Air quality" },
   { id: "walk", label: "Walkability" },
-  { id: "ocean", label: "Ocean / sunset" },
+  { id: "ocean", label: "Ocean view" },
+  { id: "sunset", label: "Sunset view" },
   { id: "condition", label: "Condition" },
   { id: "noise", label: "Quiet (noise)" },
   { id: "suitability", label: "Best areas" },

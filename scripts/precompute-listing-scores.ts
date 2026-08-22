@@ -63,10 +63,15 @@ async function main() {
 
   const emptyViewshed = (coastKm: number) => ({
     hasOceanView: false,
+    hasSunsetView: false,
     clearRayFraction: 0,
     score100: 0,
+    oceanViewScore: 0,
+    sunsetViewScore: 0,
     clearRays: 0,
     testedRays: 0,
+    sunsetClearRays: 0,
+    sunsetTestedRays: 0,
     nearestCoastKm: coastKm,
     terrainBlockedRays: 0,
     buildingBlockedRays: 0,
@@ -76,8 +81,8 @@ async function main() {
     confidence: "low" as const,
     summary:
       coastKm > OCEAN_SKIP_COAST_KM
-        ? `Ocean viewshed 0/100 — too far inland (~${coastKm.toFixed(1)} km to coast)`
-        : "Ocean viewshed unavailable",
+        ? `Viewshed 0/100 — too far inland (~${coastKm.toFixed(1)} km to coast)`
+        : "Ocean/sunset viewshed unavailable",
     method: "dem-los+osm-buildings" as const,
   });
 
@@ -144,10 +149,15 @@ async function main() {
       driveMinutes,
       oceanViewshed: {
         hasOceanView: viewshed.hasOceanView,
+        hasSunsetView: viewshed.hasSunsetView,
         clearRayFraction: viewshed.clearRayFraction,
         score100: viewshed.score100,
+        oceanViewScore: viewshed.oceanViewScore,
+        sunsetViewScore: viewshed.sunsetViewScore,
         clearRays: viewshed.clearRays,
         testedRays: viewshed.testedRays,
+        sunsetClearRays: viewshed.sunsetClearRays,
+        sunsetTestedRays: viewshed.sunsetTestedRays,
         nearestCoastKm: viewshed.nearestCoastKm,
         terrainBlockedRays: viewshed.terrainBlockedRays,
         buildingBlockedRays: viewshed.buildingBlockedRays,
@@ -175,7 +185,8 @@ async function main() {
       `[${completed}/${pending.length}] ${l.address} · score ${scored.score}` +
         `${scored.flagged ? " MATCH" : ""}` +
         `${scored.coreRejected ? " (core reject)" : ""}` +
-        ` · view ${viewshed.score100}/100 · walk ${walkIndex}`,
+        ` · ocean ${viewshed.oceanViewScore ?? viewshed.score100}/100` +
+        ` · sunset ${viewshed.sunsetViewScore ?? 0}/100 · walk ${walkIndex}`,
     );
 
     if (completed % 25 === 0 || completed === pending.length) {

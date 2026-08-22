@@ -19,6 +19,7 @@ export type MetricWeights = {
   safety: number;
   walk: number;
   ocean: number;
+  sunset: number;
   air: number;
 };
 
@@ -29,10 +30,15 @@ export interface Criteria {
   minBaths: number;
   minSqft: number;
   /**
-   * Minimum GIS ocean/sunset viewshed score 0–100.
-   * 0 = no viewshed filter. Typical “has a view” band starts ~35.
+   * Minimum GIS ocean-water viewshed score 0–100 (Pacific LOS).
+   * 0 = no ocean filter. Typical “has a view” band starts ~35.
    */
   minOceanViewshed: number;
+  /**
+   * Minimum GIS due-west sunset viewshed score 0–100.
+   * Separate from ocean water — inland hills can score. 0 = off.
+   */
+  minSunsetViewshed: number;
   /**
    * @deprecated Derived from minOceanViewshed > 0. Kept for compatibility.
    */
@@ -78,7 +84,7 @@ export interface Criteria {
   neighborhoods: string[];
   /**
    * Relative weights for Best areas / location fit (any positive scale;
-   * normalized when scoring). Keys: drive, noise, safety, walk, ocean, air.
+   * normalized when scoring). Keys: drive, noise, safety, walk, ocean, sunset, air.
    */
   metricWeights: MetricWeights;
 }
@@ -149,10 +155,18 @@ export interface ListingAnalysis {
   driveMinutes: Record<string, number>;
   oceanViewshed: {
     hasOceanView: boolean;
+    hasSunsetView?: boolean;
     clearRayFraction: number;
+    /** Alias of oceanViewScore (compat) */
     score100: number;
+    /** Clear LOS to Pacific water 0–100 */
+    oceanViewScore?: number;
+    /** Clear LOS in due-west sunset band 0–100 */
+    sunsetViewScore?: number;
     clearRays: number;
     testedRays: number;
+    sunsetClearRays?: number;
+    sunsetTestedRays?: number;
     nearestCoastKm: number;
     terrainBlockedRays: number;
     buildingBlockedRays: number;
@@ -214,11 +228,16 @@ export interface ScoredListing extends Listing {
   /** GIS DEM + OSM building line-of-sight to Pacific */
   oceanViewshed?: {
     hasOceanView: boolean;
+    hasSunsetView?: boolean;
     clearRayFraction: number;
-    /** 0–100 GIS ocean line-of-sight score */
+    /** 0–100 GIS ocean line-of-sight score (alias) */
     score100: number;
+    oceanViewScore?: number;
+    sunsetViewScore?: number;
     clearRays: number;
     testedRays: number;
+    sunsetClearRays?: number;
+    sunsetTestedRays?: number;
     nearestCoastKm: number;
     terrainBlockedRays: number;
     buildingBlockedRays: number;

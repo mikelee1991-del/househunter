@@ -10,6 +10,7 @@ import { geocodeAddress } from "../lib/geocode";
 import type { IsochroneMode } from "../lib/isochrone";
 import {
   OCEAN_VIEWSHED_EXPLAIN,
+  SUNSET_VIEWSHED_EXPLAIN,
   viewshedBandLabel,
 } from "../lib/oceanViewshed";
 import type { Anchor, AnchorId, Criteria } from "../types";
@@ -298,7 +299,7 @@ export function CriteriaPanel({
         </div>
         <label className="field field-inline">
           <span>
-            Ocean / sunset openness — min {criteria.minOceanViewshed}/100
+            Ocean view — min {criteria.minOceanViewshed}/100
             {criteria.minOceanViewshed === 0
               ? " · off"
               : ` · ${viewshedBandLabel(criteria.minOceanViewshed).toLowerCase()}`}
@@ -361,12 +362,76 @@ export function CriteriaPanel({
           </button>
         </div>
         <p className="hint" title={OCEAN_VIEWSHED_EXPLAIN}>
-          From each lot we look toward the Pacific at sunset and score how much
-          of that wedge is clear of hills and nearby buildings. Higher = more
-          open ocean/sunset exposure. House facing is ignored.{" "}
-          <strong>0</strong> turns the filter off; <strong>~35</strong> is a
-          usable wedge; <strong>~60+</strong> is stricter. GIS screening only —
-          confirm on tour.
+          Clear sight-lines to Pacific water (coastal). Separate from sunset —
+          a blocked beach wedge scores low even if western sky is open.{" "}
+          <strong>0</strong> off; <strong>~35</strong> usable; <strong>~60+</strong>{" "}
+          strict. GIS screening only.
+        </p>
+
+        <label className="field field-inline">
+          <span>
+            Sunset view — min {criteria.minSunsetViewshed}/100
+            {criteria.minSunsetViewshed === 0
+              ? " · off"
+              : ` · ${viewshedBandLabel(criteria.minSunsetViewshed).toLowerCase()}`}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={criteria.minSunsetViewshed ?? 0}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              onCriteriaChange({
+                ...criteria,
+                minSunsetViewshed: v,
+              });
+            }}
+          />
+        </label>
+        <div className="chip-row chip-row-tight">
+          <button
+            type="button"
+            className={`chip ${(criteria.minSunsetViewshed ?? 0) === 0 ? "chip-on" : ""}`}
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                minSunsetViewshed: 0,
+              })
+            }
+          >
+            Off
+          </button>
+          <button
+            type="button"
+            className={`chip ${(criteria.minSunsetViewshed ?? 0) === 35 ? "chip-on" : ""}`}
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                minSunsetViewshed: 35,
+              })
+            }
+          >
+            Usable (~35)
+          </button>
+          <button
+            type="button"
+            className={`chip ${(criteria.minSunsetViewshed ?? 0) === 60 ? "chip-on" : ""}`}
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                minSunsetViewshed: 60,
+              })
+            }
+          >
+            Strong (~60)
+          </button>
+        </div>
+        <p className="hint" title={SUNSET_VIEWSHED_EXPLAIN}>
+          Due-west horizon openness. Elevated inland homes can score well when
+          ridges do not block the western sky — you do not need beachfront water.
+          GIS screening only.
         </p>
         <label className="check">
           <input
@@ -584,11 +649,12 @@ export function CriteriaPanel({
                 ...criteria,
                 metricWeights: {
                   drive: 10,
-                  noise: 10,
+                  noise: 8,
                   safety: 10,
-                  walk: 15,
-                  ocean: 45,
-                  air: 10,
+                  walk: 12,
+                  ocean: 35,
+                  sunset: 18,
+                  air: 7,
                 },
               })
             }
@@ -602,12 +668,33 @@ export function CriteriaPanel({
               onCriteriaChange({
                 ...criteria,
                 metricWeights: {
+                  drive: 10,
+                  noise: 8,
+                  safety: 10,
+                  walk: 12,
+                  ocean: 12,
+                  sunset: 40,
+                  air: 8,
+                },
+              })
+            }
+          >
+            Favor sunset
+          </button>
+          <button
+            type="button"
+            className="chip"
+            onClick={() =>
+              onCriteriaChange({
+                ...criteria,
+                metricWeights: {
                   drive: 40,
                   noise: 10,
                   safety: 12,
                   walk: 12,
-                  ocean: 16,
-                  air: 10,
+                  ocean: 10,
+                  sunset: 8,
+                  air: 8,
                 },
               })
             }

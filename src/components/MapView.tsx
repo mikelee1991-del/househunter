@@ -94,7 +94,13 @@ function listingMetricScore(
         ? Math.round((listing.walkIndex / 20) * 100)
         : null;
     case "ocean":
-      return listing.oceanViewshed?.score100 ?? null;
+      return (
+        listing.oceanViewshed?.oceanViewScore ??
+        listing.oceanViewshed?.score100 ??
+        null
+      );
+    case "sunset":
+      return listing.oceanViewshed?.sunsetViewScore ?? null;
     case "condition":
       return listing.condition?.score100 ?? null;
     case "noise":
@@ -189,13 +195,15 @@ export function MapView({
   const showSuitability = metricLayer === "suitability";
   const showNoise = metricLayer === "noise";
   const showOcean = metricLayer === "ocean";
+  const showSunset = metricLayer === "sunset";
   const showAreaMetric =
     metricLayer === "safety" ||
     metricLayer === "air" ||
     metricLayer === "walk" ||
     metricLayer === "noise" ||
     metricLayer === "condition" ||
-    metricLayer === "ocean";
+    metricLayer === "ocean" ||
+    metricLayer === "sunset";
 
   return (
     <MapContainer
@@ -244,8 +252,12 @@ export function MapView({
         airTracts={airTracts}
       />
 
-      {/* Ocean listing GIS dots/fans on top of continuous ocean wash */}
-      <OceanViewshedHeatLayer enabled={showOcean} listings={allListings} />
+      {/* Ocean / sunset listing GIS dots/fans on top of continuous wash */}
+      <OceanViewshedHeatLayer
+        enabled={showOcean || showSunset}
+        listings={allListings}
+        mode={showSunset ? "sunset" : "ocean"}
+      />
 
       {showNoise &&
         LAX_NOISE_POLYGONS.map((poly) => (

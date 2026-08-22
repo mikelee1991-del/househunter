@@ -8,12 +8,19 @@ import type { Listing } from "../types";
 function fromListing(l: Listing): OceanViewshedResult | null {
   const v = l.analysis?.oceanViewshed;
   if (!v) return null;
+  const oceanViewScore = v.oceanViewScore ?? v.score100;
+  const sunsetViewScore = v.sunsetViewScore ?? 0;
   return {
     hasOceanView: v.hasOceanView,
+    hasSunsetView: v.hasSunsetView ?? false,
     clearRayFraction: v.clearRayFraction,
     score100: v.score100,
+    oceanViewScore,
+    sunsetViewScore,
     clearRays: v.clearRays,
     testedRays: v.testedRays,
+    sunsetClearRays: v.sunsetClearRays ?? 0,
+    sunsetTestedRays: v.sunsetTestedRays ?? 0,
     nearestCoastKm: v.nearestCoastKm,
     terrainBlockedRays: v.terrainBlockedRays,
     buildingBlockedRays: v.buildingBlockedRays,
@@ -29,7 +36,12 @@ function fromListing(l: Listing): OceanViewshedResult | null {
 function needsLiveGis(l: Listing): boolean {
   const ov = l.analysis?.oceanViewshed;
   if (!ov) return true;
-  return /unavailable|pending rebake/i.test(ov.summary || "");
+  if (/unavailable|pending rebake/i.test(ov.summary || "")) return true;
+  // Legacy bake only had combined score100 — recompute for dual ocean/sunset
+  if (ov.sunsetViewScore == null && (ov.nearestCoastKm ?? 99) <= 28) {
+    return true;
+  }
+  return false;
 }
 
 export function useOceanViewshed(listings: Listing[], enabled = true) {
@@ -65,15 +77,17 @@ export function useOceanViewshed(listings: Listing[], enabled = true) {
 
     // Cap live browser GIS so we don't hammer DEM/Overpass for hundreds of gaps
     const liveCap = 40;
-    const prioritized = [...need].sort((a, b) => {
-      const ca = a.analysis?.oceanViewshed?.nearestCoastKm ?? 99;
-      const cb = b.analysis?.oceanViewshed?.nearestCoastKm ?? 99;
-      return ca - cb;
-    }).slice(0, liveCap);
+    const prioritized = [...need]
+      .sort((a, b) => {
+        const ca = a.analysis?.oceanViewshed?.nearestCoastKm ?? 99;
+        const cb = b.analysis?.oceanViewshed?.nearestCoastKm ?? 99;
+        return ca - cb;
+      })
+      .slice(0, liveCap);
 
     setReady(false);
     setProgress(
-      `Ocean GIS for ${prioritized.length} coastal lots (nearest first)…`,
+      `Ocean/sunset GIS for ${prioritized.length} lots (nearest coast first)…`,
     );
 
     (async () => {
@@ -86,7 +100,7 @@ export function useOceanViewshed(listings: Listing[], enabled = true) {
           })),
           (done, total) => {
             if (!cancelled) {
-              setProgress(`Ocean viewshed ${done}/${total}`);
+              setProgress(`Ocean/sunset viewshed ${done}/${total}`);
             }
           },
         );

@@ -4,9 +4,9 @@ export function SuitabilityLegend() {
       <strong>Best areas (per address)</strong>
       <p>
         Peaks at listing addresses using your weighted mix of drive, quiet,
-        safety, walk, ocean/sunset GIS, and air (see <em>Best areas weights</em>{" "}
-        in the criteria panel). Beachfront open-wedge homes should read bright
-        when ocean weight is high.
+        safety, walk, ocean view, sunset view, and air (see{" "}
+        <em>Best areas weights</em> in the criteria panel). Beachfront water
+        views and inland hill sunsets are weighted separately.
       </p>
       <div
         className="suitability-legend-ramp"

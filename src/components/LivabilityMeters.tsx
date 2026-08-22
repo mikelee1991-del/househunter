@@ -1,5 +1,6 @@
 import {
   OCEAN_VIEWSHED_EXPLAIN,
+  SUNSET_VIEWSHED_EXPLAIN,
   viewshedBandLabel,
 } from "../lib/oceanViewshed";
 import { airQualityBand } from "../lib/airQuality";
@@ -15,10 +16,14 @@ interface Props {
   walkMax: number;
   airQualityScore?: number | null;
   minAirQualityScore?: number;
-  /** GIS ocean viewshed 0–100 when computed */
+  /** GIS ocean water viewshed 0–100 when computed */
   oceanViewshedScore?: number;
   oceanViewshedHasView?: boolean;
   minOceanViewshed?: number;
+  /** GIS due-west sunset viewshed 0–100 */
+  sunsetViewshedScore?: number;
+  sunsetViewshedHasView?: boolean;
+  minSunsetViewshed?: number;
   compact?: boolean;
 }
 
@@ -34,19 +39,28 @@ export function LivabilityMeters({
   minAirQualityScore = 0,
   oceanViewshedScore,
   oceanViewshedHasView,
-  minOceanViewshed = 35,
+  minOceanViewshed = 0,
+  sunsetViewshedScore,
+  sunsetViewshedHasView,
+  minSunsetViewshed = 0,
   compact,
 }: Props) {
   const safetyOk = safetyScore >= minSafety;
   const walkOk = walkIndex >= walkMin && walkIndex <= walkMax;
   const walkLeft = (walkMin / 20) * 100;
   const walkWidth = ((walkMax - walkMin) / 20) * 100;
-  const viewOk =
+  const oceanOk =
     oceanViewshedHasView === true ||
     (oceanViewshedScore != null &&
-      oceanViewshedScore >= minOceanViewshed);
-  const showView = oceanViewshedScore != null;
-  const viewBandLeft = Math.min(100, Math.max(0, minOceanViewshed));
+      (minOceanViewshed <= 0 || oceanViewshedScore >= minOceanViewshed));
+  const showOcean = oceanViewshedScore != null;
+  const oceanBandLeft = Math.min(100, Math.max(0, minOceanViewshed));
+  const sunsetOk =
+    sunsetViewshedHasView === true ||
+    (sunsetViewshedScore != null &&
+      (minSunsetViewshed <= 0 || sunsetViewshedScore >= minSunsetViewshed));
+  const showSunset = sunsetViewshedScore != null;
+  const sunsetBandLeft = Math.min(100, Math.max(0, minSunsetViewshed));
   const showAir = airQualityScore != null && Number.isFinite(airQualityScore);
   const airOk =
     minAirQualityScore <= 0 ||
@@ -125,31 +139,62 @@ export function LivabilityMeters({
         </p>
       </div>
 
-      {showView && (
+      {showOcean && (
         <div className="liv-row">
           <div className="liv-head">
-            <span>Ocean / sunset openness</span>
-            <strong className={viewOk ? "ok" : "bad"}>
+            <span>Ocean view</span>
+            <strong className={oceanOk ? "ok" : "bad"}>
               {oceanViewshedScore}/100 ·{" "}
               {viewshedBandLabel(oceanViewshedScore ?? 0).toLowerCase()}
             </strong>
           </div>
           <div className="liv-track" aria-hidden>
+            {minOceanViewshed > 0 && (
+              <div
+                className="liv-band"
+                style={{ left: `${oceanBandLeft}%`, right: 0 }}
+              />
+            )}
             <div
-              className="liv-band"
-              style={{ left: `${viewBandLeft}%`, right: 0 }}
-            />
-            <div
-              className={`liv-thumb ${viewOk ? "ok" : "bad"}`}
+              className={`liv-thumb ${oceanOk ? "ok" : "bad"}`}
               style={{ left: `${Math.min(100, oceanViewshedScore)}%` }}
             />
           </div>
           <p className="liv-cap" title={OCEAN_VIEWSHED_EXPLAIN}>
-            Clear share of the sunset/Pacific wedge (hills + nearby buildings).
-            Your min {minOceanViewshed}/100
-            {minOceanViewshed === 0
-              ? " · filter off"
-              : ` · ${viewshedBandLabel(minOceanViewshed).toLowerCase()}`}
+            Clear LOS to Pacific water.
+            {minOceanViewshed > 0
+              ? ` Your min ${minOceanViewshed}/100 · ${viewshedBandLabel(minOceanViewshed).toLowerCase()}`
+              : " Filter off"}
+          </p>
+        </div>
+      )}
+
+      {showSunset && (
+        <div className="liv-row">
+          <div className="liv-head">
+            <span>Sunset view</span>
+            <strong className={sunsetOk ? "ok" : "bad"}>
+              {sunsetViewshedScore}/100 ·{" "}
+              {viewshedBandLabel(sunsetViewshedScore ?? 0).toLowerCase()}
+            </strong>
+          </div>
+          <div className="liv-track" aria-hidden>
+            {minSunsetViewshed > 0 && (
+              <div
+                className="liv-band"
+                style={{ left: `${sunsetBandLeft}%`, right: 0 }}
+              />
+            )}
+            <div
+              className={`liv-thumb ${sunsetOk ? "ok" : "bad"}`}
+              style={{ left: `${Math.min(100, sunsetViewshedScore)}%` }}
+            />
+          </div>
+          <p className="liv-cap" title={SUNSET_VIEWSHED_EXPLAIN}>
+            Due-west horizon (inland hills OK).
+            {minSunsetViewshed > 0
+              ? ` Your min ${minSunsetViewshed}/100 · ${viewshedBandLabel(minSunsetViewshed).toLowerCase()}`
+              : " Filter off"}
           </p>
         </div>
       )}

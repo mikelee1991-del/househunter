@@ -1,19 +1,16 @@
 import { useMemo } from "react";
 import { CircleMarker, Polygon } from "react-leaflet";
 import {
-  SUNSET_OCEAN_CONE_CENTER_DEG,
-  SUNSET_OCEAN_CONE_HALF_DEG,
+  OCEAN_CONE_CENTER_DEG,
+  OCEAN_CONE_HALF_DEG,
+  SUNSET_CONE_CENTER_DEG,
+  SUNSET_CONE_HALF_DEG,
 } from "../lib/oceanViewshed";
 import { oceanViewshedRgba } from "../lib/suitabilityHeatmap";
 import type { Listing } from "../types";
 
-/** Short sunset fans only for strong clear wedges */
+/** Short fans only for strong clear wedges */
 const MIN_WEDGE_SCORE = 60;
-/**
- * Include every lot with a GIS viewshed inside this coast distance.
- * Farther inland stays off the ocean layer (score already 0 / too-far).
- */
-const MAX_COAST_KM = 8;
 
 function destination(
   lat: number,
@@ -48,41 +45,48 @@ function isPlaceholderSummary(summary: string | undefined): boolean {
   return /unavailable|pending rebake/i.test(s);
 }
 
+function viewScore(
+  ov: NonNullable<Listing["analysis"]>["oceanViewshed"] | undefined,
+  mode: "ocean" | "sunset",
+): number | null {
+  if (!ov) return null;
+  if (mode === "sunset") {
+    return typeof ov.sunsetViewScore === "number" ? ov.sunsetViewScore : null;
+  }
+  const s = ov.oceanViewScore ?? ov.score100;
+  return typeof s === "number" ? s : null;
+}
+
 type Wedge = {
   id: string;
   score: number;
   positions: [number, number][];
 };
 
-function strongWedges(listings: Listing[]): Wedge[] {
+function strongWedges(
+  listings: Listing[],
+  mode: "ocean" | "sunset",
+): Wedge[] {
   const out: Wedge[] = [];
+  const center =
+    mode === "sunset" ? SUNSET_CONE_CENTER_DEG : OCEAN_CONE_CENTER_DEG;
+  const halfDeg =
+    (mode === "sunset" ? SUNSET_CONE_HALF_DEG : OCEAN_CONE_HALF_DEG) * 0.4;
+  const maxCoast = mode === "sunset" ? 28 : 12;
+
   for (const l of listings) {
     const ov = l.analysis?.oceanViewshed;
-    if (!ov || ov.score100 < MIN_WEDGE_SCORE) continue;
-    if (isPlaceholderSummary(ov.summary)) continue;
-    const reachKm = 0.28 + (ov.score100 / 100) * 0.45;
-    const half = SUNSET_OCEAN_CONE_HALF_DEG * 0.4;
-    const left = destination(
-      l.lat,
-      l.lng,
-      SUNSET_OCEAN_CONE_CENTER_DEG - half,
-      reachKm,
-    );
-    const mid = destination(
-      l.lat,
-      l.lng,
-      SUNSET_OCEAN_CONE_CENTER_DEG,
-      reachKm * 1.06,
-    );
-    const right = destination(
-      l.lat,
-      l.lng,
-      SUNSET_OCEAN_CONE_CENTER_DEG + half,
-      reachKm,
-    );
+    const score = viewScore(ov, mode);
+    if (score == null || score < MIN_WEDGE_SCORE) continue;
+    if (isPlaceholderSummary(ov?.summary)) continue;
+    if ((ov?.nearestCoastKm ?? 99) > maxCoast) continue;
+    const reachKm = 0.28 + (score / 100) * 0.45;
+    const left = destination(l.lat, l.lng, center - halfDeg, reachKm);
+    const mid = destination(l.lat, l.lng, center, reachKm * 1.06);
+    const right = destination(l.lat, l.lng, center + halfDeg, reachKm);
     out.push({
       id: l.id,
-      score: ov.score100,
+      score,
       positions: [[l.lat, l.lng], left, mid, right],
     });
   }
@@ -92,32 +96,38 @@ function strongWedges(listings: Listing[]): Wedge[] {
 interface Props {
   enabled: boolean;
   listings: Listing[];
+  mode?: "ocean" | "sunset";
 }
 
 /**
- * GIS ocean/sunset overlays on every analyzed coastal address (matches or not):
- * 1) Continuous coastal wash comes from ContinuousMetricHeatLayer
- * 2) Dot on each coastal lot colored by DEM+building LOS score (blocked = dark)
- * 3) Short sunset fan only on strong clear wedges (≥60)
- *
- * Address dots stay lot-accurate — a Strand 100 does not light the blocked lot behind it.
+ * GIS ocean or sunset overlays on analyzed addresses:
+ * 1) Continuous wash comes from ContinuousMetricHeatLayer
+ * 2) Dot on each lot colored by DEM+building LOS score
+ * 3) Short fan only on strong clear wedges (≥60)
  */
-export function OceanViewshedHeatLayer({ enabled, listings }: Props) {
+export function OceanViewshedHeatLayer({
+  enabled,
+  listings,
+  mode = "ocean",
+}: Props) {
+  const maxCoast = mode === "sunset" ? 28 : 12;
   const coastalLots = useMemo(() => {
     if (!enabled) return [];
     return listings.filter((l) => {
       const ov = l.analysis?.oceanViewshed;
       if (!ov) return false;
+      if (viewScore(ov, mode) == null && !isPlaceholderSummary(ov.summary)) {
+        return false;
+      }
       const coast = ov.nearestCoastKm ?? 99;
-      if (coast > MAX_COAST_KM) return false;
-      // Still show placeholders as dark dots so gaps are visible during rebake
+      if (coast > maxCoast) return false;
       return true;
     });
-  }, [enabled, listings]);
+  }, [enabled, listings, mode, maxCoast]);
 
   const wedges = useMemo(
-    () => (enabled ? strongWedges(listings) : []),
-    [enabled, listings],
+    () => (enabled ? strongWedges(listings, mode) : []),
+    [enabled, listings, mode],
   );
 
   if (!enabled) return null;
@@ -126,7 +136,7 @@ export function OceanViewshedHeatLayer({ enabled, listings }: Props) {
     <>
       {wedges.map((w) => (
         <Polygon
-          key={`owedge-${w.id}`}
+          key={`owedge-${mode}-${w.id}`}
           positions={w.positions}
           pathOptions={{
             color: w.score >= 80 ? "#0b6e4f" : "#2a9d8f",
@@ -139,13 +149,13 @@ export function OceanViewshedHeatLayer({ enabled, listings }: Props) {
       ))}
       {coastalLots.map((l) => {
         const ov = l.analysis!.oceanViewshed!;
-        const score = ov.score100;
+        const score = viewScore(ov, mode) ?? 0;
         const placeholder = isPlaceholderSummary(ov.summary);
         const radius =
           score >= 60 ? 8 : score >= 35 ? 6.5 : score > 0 ? 5.5 : 4.5;
         return (
           <CircleMarker
-            key={`odot-${l.id}`}
+            key={`odot-${mode}-${l.id}`}
             center={[l.lat, l.lng]}
             radius={radius}
             pathOptions={{

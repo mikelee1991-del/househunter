@@ -61,6 +61,7 @@ export const DEFAULT_CRITERIA: Criteria = {
   minBaths: 2,
   minSqft: 1600,
   minOceanViewshed: 0,
+  minSunsetViewshed: 0,
   requireOceanView: false,
   requireWestFacing: false,
   requireOutdoorSpace: true,
@@ -89,7 +90,8 @@ export const DEFAULT_CRITERIA: Criteria = {
     noise: 12,
     safety: 13,
     walk: 14,
-    ocean: 26,
+    ocean: 16,
+    sunset: 10,
     air: 7,
   },
 };

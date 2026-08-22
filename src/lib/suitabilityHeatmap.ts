@@ -38,6 +38,12 @@ export interface HeatmapOceanSample {
   score: number;
 }
 
+export interface HeatmapSunsetSample {
+  lat: number;
+  lng: number;
+  score: number;
+}
+
 /** Per-cell geographic context (independent of slider thresholds). */
 export interface HeatmapCellBase {
   lat: number;
@@ -47,6 +53,7 @@ export interface HeatmapCellBase {
   walkIndex: number;
   airQualityScore: number;
   oceanProxy: number;
+  sunsetProxy: number;
   driveMins: Record<AnchorId, number>;
 }
 
@@ -75,16 +82,16 @@ function nearestCoastKm(lat: number, lng: number): number {
 }
 
 /**
- * Address-local ocean score: exact nearest listing viewshed within maxKm.
- * Returns null when no listing is close enough (no broad coast wash).
+ * Address-local score from nearest sample within maxKm.
+ * Returns null when no sample is close enough (no broad wash).
  */
-export function addressLocalOceanScore(
+export function addressLocalScore(
   lat: number,
   lng: number,
-  samples: HeatmapOceanSample[],
+  samples: { lat: number; lng: number; score: number }[],
   maxKm = 0.11,
 ): number | null {
-  let best: HeatmapOceanSample | null = null;
+  let best: { lat: number; lng: number; score: number } | null = null;
   let bestD = Infinity;
   for (const s of samples) {
     const d = haversineKm(lat, lng, s.lat, s.lng);
@@ -97,18 +104,41 @@ export function addressLocalOceanScore(
   return best.score;
 }
 
-/** Soft ocean/sunset openness for suitability cells — address-local first. */
+/** @deprecated Prefer addressLocalScore */
+export function addressLocalOceanScore(
+  lat: number,
+  lng: number,
+  samples: HeatmapOceanSample[],
+  maxKm = 0.11,
+): number | null {
+  return addressLocalScore(lat, lng, samples, maxKm);
+}
+
+/** Soft ocean-water openness for suitability cells — address-local first. */
 export function oceanProxyAt(
   lat: number,
   lng: number,
   samples: HeatmapOceanSample[],
 ): number {
-  const local = addressLocalOceanScore(lat, lng, samples, 0.18);
+  const local = addressLocalScore(lat, lng, samples, 0.18);
   if (local != null) return local;
 
-  // Far from any measured lot: weak coast-only hint (not a neighborhood smear)
+  // Far from any measured lot: weak coast-only hint (ocean needs near-shore)
   const coastKm = nearestCoastKm(lat, lng);
   return Math.round(clamp((1 - coastKm / 7.5) * 35, 0, 35));
+}
+
+/** Soft sunset openness — inland hills can still catch western sky. */
+export function sunsetProxyAt(
+  lat: number,
+  lng: number,
+  samples: HeatmapSunsetSample[],
+): number {
+  const local = addressLocalScore(lat, lng, samples, 0.22);
+  if (local != null) return local;
+
+  const coastKm = nearestCoastKm(lat, lng);
+  return Math.round(clamp((1 - coastKm / 22) * 40, 0, 40));
 }
 
 type NbRing = {
@@ -205,12 +235,32 @@ export function oceanSamplesFromListings(
   const out: HeatmapOceanSample[] = [];
   for (const l of listings) {
     const ov = l.analysis?.oceanViewshed;
-    if (!ov || typeof ov.score100 !== "number") continue;
-    if ((ov.nearestCoastKm ?? 99) > 8) continue;
+    if (!ov) continue;
+    const score = ov.oceanViewScore ?? ov.score100;
+    if (typeof score !== "number") continue;
+    if ((ov.nearestCoastKm ?? 99) > 12) continue;
     if (/too far inland|unavailable|pending rebake/i.test(ov.summary || "")) {
       continue;
     }
-    out.push({ lat: l.lat, lng: l.lng, score: ov.score100 });
+    out.push({ lat: l.lat, lng: l.lng, score });
+  }
+  return out;
+}
+
+export function sunsetSamplesFromListings(
+  listings: Listing[],
+): HeatmapSunsetSample[] {
+  const out: HeatmapSunsetSample[] = [];
+  for (const l of listings) {
+    const ov = l.analysis?.oceanViewshed;
+    if (!ov) continue;
+    const score = ov.sunsetViewScore;
+    if (typeof score !== "number") continue;
+    if ((ov.nearestCoastKm ?? 99) > 28) continue;
+    if (/too far inland|unavailable|pending rebake/i.test(ov.summary || "")) {
+      continue;
+    }
+    out.push({ lat: l.lat, lng: l.lng, score });
   }
   return out;
 }
@@ -230,6 +280,7 @@ export function buildHeatmapBase(
 ): HeatmapCellBase[] {
   const { south, west, north, east } = SUITABILITY_BOUNDS;
   const samples = oceanSamplesFromListings(listings);
+  const sunsetSamples = sunsetSamplesFromListings(listings);
   const tractIndex = tracts ? tractRings(tracts) : null;
   const airIndex = airTracts ? airRings(airTracts) : null;
   const cells: HeatmapCellBase[] = new Array(cols * rows);
@@ -251,6 +302,7 @@ export function buildHeatmapBase(
         walkIndex: liv.walkIndex,
         airQualityScore: airAt(lat, lng, airIndex),
         oceanProxy: oceanProxyAt(lat, lng, samples),
+        sunsetProxy: sunsetProxyAt(lat, lng, sunsetSamples),
         driveMins,
       };
     }
@@ -359,20 +411,39 @@ export function scoreHeatmapCell(
     walk = clamp(55 - over * 8, 0, 55);
   }
 
-  const minView = criteria.minOceanViewshed ?? 0;
+  const minOcean = criteria.minOceanViewshed ?? 0;
   let ocean: number;
-  if (minView > 0) {
-    if (cell.oceanProxy >= minView) {
+  if (minOcean > 0) {
+    if (cell.oceanProxy >= minOcean) {
       ocean =
         55 +
-        clamp((cell.oceanProxy - minView) / Math.max(100 - minView, 1), 0, 1) *
+        clamp((cell.oceanProxy - minOcean) / Math.max(100 - minOcean, 1), 0, 1) *
           45;
     } else {
-      ocean = clamp((cell.oceanProxy / minView) * 40, 0, 40);
+      ocean = clamp((cell.oceanProxy / minOcean) * 40, 0, 40);
     }
   } else {
     // Strong spread so Strand / open-wedge lots pop vs blocked second-row
     ocean = 12 + cell.oceanProxy * 0.88;
+  }
+
+  const minSunset = criteria.minSunsetViewshed ?? 0;
+  let sunset: number;
+  if (minSunset > 0) {
+    if (cell.sunsetProxy >= minSunset) {
+      sunset =
+        55 +
+        clamp(
+          (cell.sunsetProxy - minSunset) / Math.max(100 - minSunset, 1),
+          0,
+          1,
+        ) *
+          45;
+    } else {
+      sunset = clamp((cell.sunsetProxy / minSunset) * 40, 0, 40);
+    }
+  } else {
+    sunset = 15 + cell.sunsetProxy * 0.8;
   }
 
   const minAir = criteria.minAirQualityScore ?? 0;
@@ -398,15 +469,15 @@ export function scoreHeatmapCell(
     air = 40 + cell.airQualityScore * 0.4;
   }
 
-  // Ocean openness is a first-class location signal (Strand should outshine
-  // a blocked lot a block inland). Drive stays important for commute fit.
+  // Ocean + sunset are separate location signals (Strand water vs inland hill sunset).
   const w = normalizeMetricWeights(
     criteria.metricWeights ?? {
       drive: 22,
       noise: 12,
       safety: 13,
       walk: 14,
-      ocean: 26,
+      ocean: 16,
+      sunset: 10,
       air: 7,
     },
   );
@@ -416,6 +487,7 @@ export function scoreHeatmapCell(
     safety * w.safety +
     walk * w.walk +
     ocean * w.ocean +
+    sunset * w.sunset +
     air * w.air;
 
   return clamp(score, 0, 100);
@@ -688,10 +760,17 @@ export function listingLocationCell(
         : estimateDriveMinutes(listing.lat, listing.lng, a.lat, a.lng);
   }
   const ov = listing.analysis?.oceanViewshed;
+  const oceanOk =
+    ov &&
+    !/unavailable|pending rebake/i.test(ov.summary || "");
   const oceanProxy =
-    ov && typeof ov.score100 === "number" && !/unavailable|pending rebake/i.test(ov.summary || "")
-      ? ov.score100
+    oceanOk && typeof (ov.oceanViewScore ?? ov.score100) === "number"
+      ? (ov.oceanViewScore ?? ov.score100)
       : oceanProxyAt(listing.lat, listing.lng, []);
+  const sunsetProxy =
+    oceanOk && typeof ov.sunsetViewScore === "number"
+      ? ov.sunsetViewScore
+      : sunsetProxyAt(listing.lat, listing.lng, []);
 
   return {
     lat: listing.lat,
@@ -707,6 +786,7 @@ export function listingLocationCell(
       listing.analysis?.airQuality?.airQualityScore ??
       35,
     oceanProxy,
+    sunsetProxy,
     driveMins,
   };
 }

@@ -131,10 +131,10 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "ocean") {
     return (
       <div className="safety-legend">
-        <strong>Ocean / sunset view (area)</strong>
+        <strong>Ocean view (area)</strong>
         <p>
-          Continuous coastal openness across the reachable region, plus GIS
-          dots/fans at analyzed addresses (matches or not). Blocked second-row
+          Clear line-of-sight to Pacific water across the reachable region,
+          plus GIS dots/fans at analyzed coastal addresses. Blocked second-row
           lots stay dark next to a Strand 100.
         </p>
         <ul>
@@ -146,6 +146,36 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
           <li>
             <i style={{ background: "#2a9d8f" }} />
             Usable wedge
+            <span>35–60</span>
+          </li>
+          <li>
+            <i style={{ background: "#4a5560" }} />
+            Blocked / weak
+            <span>&lt;35</span>
+          </li>
+        </ul>
+      </div>
+    );
+  }
+
+  if (layer === "sunset") {
+    return (
+      <div className="safety-legend">
+        <strong>Sunset view (area)</strong>
+        <p>
+          Due-west horizon openness — elevated inland hills can score when
+          ridges do not block the western sky. Separate from beachfront ocean
+          water.
+        </p>
+        <ul>
+          <li>
+            <i style={{ background: "#0b6e4f" }} />
+            Strong west band
+            <span>≥60</span>
+          </li>
+          <li>
+            <i style={{ background: "#2a9d8f" }} />
+            Usable west band
             <span>35–60</span>
           </li>
           <li>
