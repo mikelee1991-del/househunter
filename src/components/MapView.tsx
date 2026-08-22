@@ -11,6 +11,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { LAX_NOISE_POLYGONS } from "../data/laxNoise";
+import { HIGHWAY_CORRIDORS, estimateNoiseCnel } from "../data/ambientNoise";
 import type { SafetyTractsFile } from "../data/safetyTiers";
 import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { IsochroneMap } from "../hooks/useIsochrones";
@@ -118,7 +119,11 @@ function listingMetricScore(
     case "condition":
       return resolveListingCondition(listing)?.score100 ?? null;
     case "noise":
-      return Math.round(quietScoreFromCnel(listing.noiseCnel));
+      return Math.round(
+        quietScoreFromCnel(
+          estimateNoiseCnel(listing.lat, listing.lng) || listing.noiseCnel,
+        ),
+      );
     default:
       return null;
   }
@@ -220,7 +225,8 @@ export function MapView({
     metricLayer === "ocean" ||
     metricLayer === "sunset";
   // Tint pins for condition so scores read without relying on a wash.
-  const pinMetricLayer: MapMetricLayer = showCondition ? "condition" : "off";
+  const pinMetricLayer: MapMetricLayer =
+    showCondition || showNoise ? metricLayer : "off";
 
   return (
     <MapContainer
@@ -283,6 +289,22 @@ export function MapView({
         listings={allListings}
         mode={showSunset ? "sunset" : "ocean"}
       />
+
+      {showNoise &&
+        HIGHWAY_CORRIDORS.map((road) => (
+          <Polyline
+            key={`hwy-${road.id}`}
+            positions={road.coordinates.map(([lng, lat]) => [lat, lng])}
+            pathOptions={{
+              color: road.klass === "freeway" ? "#9b2c2c" : "#b85c38",
+              weight: road.klass === "freeway" ? 2.25 : 1.5,
+              opacity: 0.55,
+              dashArray: road.klass === "coastal" ? "4 6" : undefined,
+            }}
+          >
+            <Tooltip sticky>{road.name}</Tooltip>
+          </Polyline>
+        ))}
 
       {showNoise &&
         LAX_NOISE_POLYGONS.map((poly) => (

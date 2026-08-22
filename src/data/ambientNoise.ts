@@ -10,6 +10,10 @@ export { LAX_NOISE_POLYGONS, type NoiseBand, type NoisePolygon };
 export { HIGHWAY_CORRIDORS };
 
 const EARTH_M = 6_371_000;
+/** Ignore corridor contribution beyond this distance (m). */
+const HIGHWAY_MAX_DIST_M = 2200;
+/** Soft ambient floor — below this, treat as no highway contribution. */
+const HIGHWAY_FLOOR_CNEL = 42;
 
 function toRad(d: number) {
   return (d * Math.PI) / 180;
@@ -66,17 +70,18 @@ function minDistToCorridorM(
 }
 
 /**
- * Soft-ground-ish FHWA-style falloff from a near-road reference.
- * Freeway ref ≈ 72 CNEL at 15 m; coastal arterial ≈ 66.
- * ~4.5 dB per doubling of distance (soft ground).
+ * Hard-ground-leaning FHWA-style falloff from a near-road reference.
+ * Freeway ref ≈ 74 CNEL at 15 m; coastal arterial ≈ 66.
+ * ~3.5 dB per doubling (harder ground / line source) so corridors stay
+ * audible past ~1 km instead of dying by ~600 m.
  */
 function cnelFromDistanceM(distM: number, klass: HighwayClass): number {
-  const refAt15 = klass === "freeway" ? 72 : 66;
+  const refAt15 = klass === "freeway" ? 74 : 66;
   const d = Math.max(distM, 8);
   const doublings = Math.log2(d / 15);
-  const level = refAt15 - 4.5 * doublings;
-  if (level < 48) return 0; // below ambient floor — ignore
-  return Math.round(Math.min(78, level));
+  const level = refAt15 - 3.5 * doublings;
+  if (level < HIGHWAY_FLOOR_CNEL) return 0;
+  return Math.round(Math.min(80, level));
 }
 
 /** Loudest highway corridor CNEL contribution at a point (0 if far). */
@@ -84,13 +89,21 @@ export function estimateHighwayNoiseCnel(lat: number, lng: number): number {
   let max = 0;
   for (const road of HIGHWAY_CORRIDORS) {
     const distM = minDistToCorridorM(lat, lng, road.coordinates);
-    if (distM > 1200) continue;
+    if (distM > HIGHWAY_MAX_DIST_M) continue;
     max = Math.max(max, cnelFromDistanceM(distM, road.klass));
   }
   return max;
 }
 
 export type NoiseDominantSource = "airport" | "highway" | "ambient";
+
+/** Energy-ish combine of two CNEL levels (dB). */
+function combineCnel(a: number, b: number): number {
+  if (a <= 0) return b;
+  if (b <= 0) return a;
+  const lin = 10 ** (a / 10) + 10 ** (b / 10);
+  return Math.round(10 * Math.log10(lin));
+}
 
 export function noiseBreakdown(lat: number, lng: number): {
   airport: number;
@@ -100,7 +113,11 @@ export function noiseBreakdown(lat: number, lng: number): {
 } {
   const airport = estimateAirportNoiseCnel(lat, lng);
   const highway = estimateHighwayNoiseCnel(lat, lng);
-  const total = Math.max(airport, highway);
+  // Prefer energy sum when both are elevated; otherwise louder source.
+  const total =
+    airport >= 50 && highway >= 50
+      ? Math.min(82, combineCnel(airport, highway))
+      : Math.max(airport, highway);
   let dominant: NoiseDominantSource = "ambient";
   if (total <= 42) dominant = "ambient";
   else if (highway >= airport) dominant = "highway";
@@ -110,7 +127,6 @@ export function noiseBreakdown(lat: number, lng: number): {
 
 /**
  * Combined ambient noise screening (airport CNEL contours + highway corridors).
- * Uses the louder source — typical land-use screening practice.
  */
 export function estimateNoiseCnel(lat: number, lng: number): number {
   return noiseBreakdown(lat, lng).total;

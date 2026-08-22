@@ -95,11 +95,13 @@ export function estimateAirportNoiseCnel(lat: number, lng: number): number {
     }
   }
   if (max === 0) {
+    // Soft halo outside official-ish 65 CNEL — keep tight so beach cities
+    // far from flight paths are not painted as “elevated airport noise”.
     const dLat = lat - 33.942;
     const dLng = (lng + 118.4085) * Math.cos((lat * Math.PI) / 180);
     const distKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111;
-    if (distKm < 8) return Math.round(55 + (8 - distKm) * 1.2);
-    if (distKm < 14) return Math.round(45 + (14 - distKm));
+    if (distKm < 5.5) return Math.round(52 + (5.5 - distKm) * 2.0);
+    if (distKm < 9) return Math.round(42 + (9 - distKm) * 2.5);
     return 40;
   }
   return max;

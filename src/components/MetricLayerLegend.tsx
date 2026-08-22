@@ -99,14 +99,16 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
       <div className="safety-legend">
         <strong>Ambient noise (area)</strong>
         <p>
-          {AREA_NOTE} Continuous LAX + freeway / rail proximity model. Contour
-          lines = LAX CNEL.
+          {AREA_NOTE} LAX CNEL contours (dashed) + OSM freeway/PCH corridors
+          (solid). Wash uses the louder source with longer highway falloff —
+          homes along the real I-405 through Torrance/Carson should read
+          elevated.
         </p>
         <ul>
           <li>
             <i style={{ background: "#c0392b" }} />
             Loud
-            <span>≥70</span>
+            <span>≥70 CNEL</span>
           </li>
           <li>
             <i style={{ background: "#e07a3d" }} />
