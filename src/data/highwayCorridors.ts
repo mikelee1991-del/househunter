@@ -752,10 +752,6 @@ export const HIGHWAY_CORRIDORS: HighwayCorridor[] = [
         34.0214
       ],
       [
-        -118.5193,
-        34.028
-      ],
-      [
         -118.507,
         34.0204
       ],

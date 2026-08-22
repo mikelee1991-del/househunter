@@ -99,10 +99,9 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
       <div className="safety-legend">
         <strong>Ambient noise (area)</strong>
         <p>
-          {AREA_NOTE} LAX CNEL contours (dashed) + OSM freeway/PCH corridors
-          (solid). Wash uses the louder source with longer highway falloff —
-          homes along the real I-405 through Torrance/Carson should read
-          elevated.
+          {AREA_NOTE} LAX CNEL contours (dashed) + freeway corridors (solid;
+          PCH dashed). Wash takes the louder source, and energy-combines when
+          airport and highway are both ≥50 CNEL.
         </p>
         <ul>
           <li>
