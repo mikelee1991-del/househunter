@@ -94,7 +94,6 @@ export default function App() {
     metricLayer === "safety" ||
     metricLayer === "air" ||
     metricLayer === "walk" ||
-    metricLayer === "condition" ||
     metricLayer === "ocean" ||
     metricLayer === "sunset" ||
     metricLayer === "noise" ||
@@ -179,7 +178,9 @@ export default function App() {
   // Ocean layer: show the full eligible pool so beachfront view homes aren't
   // hidden by "Matches only" (overlay uses all inventory; pins should too).
   const visible =
-    metricLayer === "ocean" || metricLayer === "sunset"
+    metricLayer === "ocean" ||
+    metricLayer === "sunset" ||
+    metricLayer === "condition"
       ? eligible
       : showFlaggedOnly
         ? matches
