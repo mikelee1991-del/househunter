@@ -25,15 +25,29 @@ import {
 import type { Anchor, Criteria, Listing, ScoredListing } from "../types";
 import { ParameterScoreChart } from "./ParameterScoreChart";
 import { ContinuousMetricHeatLayer } from "./ContinuousMetricHeatLayer";
+import { AddressMetricHeatLayer } from "./AddressMetricHeatLayer";
+import { ConditionHeatLayer } from "./ConditionHeatLayer";
 import { OceanViewshedHeatLayer } from "./OceanViewshedHeatLayer";
 import { SuitabilityHeatLayer } from "./SuitabilityHeatLayer";
 import type { AreaMetricId } from "../lib/metricAreaHeatmap";
+import {
+  conditionRgba,
+  resolveListingCondition,
+} from "../lib/condition";
 
 const NOISE_COLORS: Record<number, string> = {
   65: "#f0c92955",
   70: "#e07a3d77",
   75: "#c0392b99",
 };
+
+function pinMetricColor(layer: MapMetricLayer, score: number): string {
+  if (layer === "condition") {
+    const [r, g, b] = conditionRgba(score);
+    return `rgb(${r},${g},${b})`;
+  }
+  return metricScoreColor(score);
+}
 
 function FitToHomes({ listings }: { listings: ScoredListing[] }) {
   const map = useMap();
@@ -102,7 +116,7 @@ function listingMetricScore(
     case "sunset":
       return listing.oceanViewshed?.sunsetViewScore ?? null;
     case "condition":
-      return listing.condition?.score100 ?? null;
+      return resolveListingCondition(listing)?.score100 ?? null;
     case "noise":
       return Math.round(quietScoreFromCnel(listing.noiseCnel));
     default:
@@ -120,7 +134,7 @@ function homeIcon(
   const metric = listingMetricScore(listing, metricLayer);
   const tint =
     metric != null && metricLayer !== "off" && metricLayer !== "suitability"
-      ? metricScoreColor(metric)
+      ? pinMetricColor(metricLayer, metric)
       : null;
   const state = [
     selected ? "is-selected" : "",
@@ -196,14 +210,17 @@ export function MapView({
   const showNoise = metricLayer === "noise";
   const showOcean = metricLayer === "ocean";
   const showSunset = metricLayer === "sunset";
+  const showCondition = metricLayer === "condition";
+  // Condition is listing-text, not a field model — address dots/halos only.
   const showAreaMetric =
     metricLayer === "safety" ||
     metricLayer === "air" ||
     metricLayer === "walk" ||
     metricLayer === "noise" ||
-    metricLayer === "condition" ||
     metricLayer === "ocean" ||
     metricLayer === "sunset";
+  // Tint pins for condition so scores read without relying on a wash.
+  const pinMetricLayer: MapMetricLayer = showCondition ? "condition" : "off";
 
   return (
     <MapContainer
@@ -251,6 +268,14 @@ export function MapView({
         safetyTracts={safetyTracts}
         airTracts={airTracts}
       />
+
+      {/* Condition: address-local only (no neighborhood IDW wash) */}
+      <AddressMetricHeatLayer
+        enabled={showCondition}
+        metric="condition"
+        listings={allListings}
+      />
+      <ConditionHeatLayer enabled={showCondition} listings={allListings} />
 
       {/* Ocean / sunset listing GIS dots/fans on top of continuous wash */}
       <OceanViewshedHeatLayer
@@ -324,7 +349,7 @@ export function MapView({
           <Marker
             key={l.id}
             position={[l.lat, l.lng]}
-            icon={homeIcon(l, isSelected, "off")}
+            icon={homeIcon(l, isSelected, pinMetricLayer)}
             zIndexOffset={
               isSelected ? 2000 : l.flagged ? 1500 : pendingLabel ? 1200 : 1000
             }

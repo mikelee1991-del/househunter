@@ -7,6 +7,11 @@ import {
   scoreRgba,
   type AddressHeatSample,
 } from "../lib/addressHeatmap";
+import {
+  conditionRgba,
+  hasConditionMapSignal,
+  resolveListingCondition,
+} from "../lib/condition";
 import type { MapMetricLayer } from "../lib/mapMetrics";
 import { oceanViewshedRgba } from "../lib/suitabilityHeatmap";
 import type { Listing } from "../types";
@@ -14,9 +19,9 @@ import type { Listing } from "../types";
 /** Parcel floor when zoomed in */
 const MIN_RADIUS_KM = 0.04;
 /** Cap when zoomed out — still address-centered, not tract-scale */
-const MAX_RADIUS_KM = 0.15;
+const MAX_RADIUS_KM = 0.18;
 /** Aim for ~this many screen pixels of halo diameter/2 */
-const TARGET_PX = 16;
+const TARGET_PX = 18;
 
 function radiusKmForZoom(zoom: number, lat: number): number {
   const mpp =
@@ -70,9 +75,12 @@ function samplesForMetric(
             ? Math.round((l.analysis.walkIndex / 20) * 100)
             : null;
         break;
-      case "condition":
-        score = l.analysis?.condition?.score100 ?? null;
+      case "condition": {
+        const c = resolveListingCondition(l);
+        if (!c || !hasConditionMapSignal(c)) break;
+        score = c.score100;
         break;
+      }
       case "suitability": {
         const raw = l.analysis?.defaultScore?.score;
         // defaultScore can exceed 100 — clamp for colormap
@@ -91,6 +99,7 @@ function samplesForMetric(
 function rgbaFor(metric: MapMetricLayer) {
   if (metric === "ocean" || metric === "sunset") return oceanViewshedRgba;
   if (metric === "noise") return noiseCnelRgba;
+  if (metric === "condition") return conditionRgba;
   return scoreRgba;
 }
 
@@ -118,7 +127,14 @@ export function AddressMetricHeatLayer({ enabled, metric, listings }: Props) {
     const samples = samplesForMetric(listings, metric);
     if (!samples.length) return null;
     return paintAddressHalos(samples, rgbaFor(metric), {
-      radiusKm,
+      radiusKm:
+        metric === "condition"
+          ? (score) =>
+              Math.max(
+                radiusKm,
+                score >= 85 || score <= 40 ? radiusKm * 1.35 : radiusKm,
+              )
+          : radiusKm,
       cols: 720,
       rows: 540,
     });

@@ -191,19 +191,33 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
   if (layer === "condition") {
     return (
       <div className="safety-legend">
-        <strong>Condition (area estimate)</strong>
+        <strong>Condition (per address)</strong>
         <p>
-          {AREA_NOTE} Interpolated from listing-text condition scores (no tract
-          source) — estimate between homes, not a hard lot score.
+          Listing-text screening at each home — not a neighborhood wash. Quiet
+          mid-scores (no renovation / fixer language) stay off the map so
+          updated and project homes stand out.
         </p>
         <ul>
-          {SCORE_BANDS.map((b) => (
-            <li key={b.label}>
-              <i style={{ background: metricScoreColor(b.min + 10) }} />
-              {b.label}
-              <span>≥{b.min}</span>
-            </li>
-          ))}
+          <li>
+            <i style={{ background: "#0b6e4f" }} />
+            Turnkey / updated
+            <span>≥85</span>
+          </li>
+          <li>
+            <i style={{ background: "#2a9d8f" }} />
+            Solid / remodeled
+            <span>70–84</span>
+          </li>
+          <li>
+            <i style={{ background: "#c87832" }} />
+            Soft / dated
+            <span>40–54</span>
+          </li>
+          <li>
+            <i style={{ background: "#b03a2e" }} />
+            Fixer / project
+            <span>&lt;40</span>
+          </li>
         </ul>
       </div>
     );
