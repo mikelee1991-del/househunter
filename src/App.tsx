@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, startTransition } from "react";
+import { useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { CriteriaPanel } from "./components/CriteriaPanel";
 import { ListingCard } from "./components/ListingCard";
 import { LivabilityScatter } from "./components/LivabilityScatter";
@@ -39,6 +39,7 @@ export default function App() {
     DEFAULT_ANCHORS.map((a) => ({ ...a })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const pickRef = useRef<HTMLDivElement | null>(null);
   const [showIsochrones, setShowIsochrones] = useState(true);
   /** Default on: show every home that fits the selected criteria */
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(true);
@@ -228,9 +229,45 @@ export default function App() {
   const flaggedCount = matches.length;
   const top = matches[0] ?? eligible[0] ?? scored[0];
   const selected =
-    visible.find((l) => l.id === selectedId) ??
-    eligible.find((l) => l.id === selectedId) ??
-    top;
+    (selectedId
+      ? (visible.find((l) => l.id === selectedId) ??
+        eligible.find((l) => l.id === selectedId) ??
+        scored.find((l) => l.id === selectedId))
+      : null) ?? top;
+
+  /** Selected home first in the grid so a map click surfaces it below */
+  const listingsBelow = useMemo(() => {
+    if (!selectedId) return visible;
+    const idx = visible.findIndex((l) => l.id === selectedId);
+    if (idx === 0) return visible;
+    if (idx > 0) {
+      const copy = visible.slice();
+      const [hit] = copy.splice(idx, 1);
+      return [hit, ...copy];
+    }
+    // Selected via scatter / map edge case while "Matches only" hides it
+    const orphan =
+      eligible.find((l) => l.id === selectedId) ??
+      scored.find((l) => l.id === selectedId);
+    return orphan ? [orphan, ...visible] : visible;
+  }, [visible, selectedId, eligible, scored]);
+
+  const scrollPickAfterSelect = useRef(false);
+
+  /** Map / scatter pick → scroll the listing panel into view under the map */
+  function selectHome(id: string, fromMap = false) {
+    setSelectedId(id);
+    scrollPickAfterSelect.current = fromMap;
+  }
+
+  useEffect(() => {
+    if (!scrollPickAfterSelect.current || !selectedId) return;
+    scrollPickAfterSelect.current = false;
+    pickRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [selectedId, listingsBelow]);
 
   function applyImportedPrefs(next: { criteria: Criteria; anchors: Anchor[] }) {
     setCriteria(next.criteria);
@@ -323,7 +360,7 @@ export default function App() {
             allListings={mapInventory}
             criteria={criteria}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            onSelect={(id) => selectHome(id, true)}
             showIsochrones={showIsochrones && Object.keys(isochrones).length > 0}
             metricLayer={metricLayer}
             satellite={satellite}
@@ -339,10 +376,10 @@ export default function App() {
               listings={eligible}
               criteria={criteria}
               selectedId={selected?.id ?? null}
-              onSelect={setSelectedId}
+              onSelect={(id) => selectHome(id, true)}
             />
             {selected && (
-              <div className="pick liv-pick">
+              <div className="pick liv-pick" ref={pickRef} id="selected-listing">
                 <div
                   className="pick-photo"
                   style={
@@ -433,13 +470,13 @@ export default function App() {
           )}
 
           <div className="listing-grid">
-            {visible.map((l) => (
+            {listingsBelow.map((l) => (
               <ListingCard
                 key={l.id}
                 listing={l}
                 criteria={criteria}
                 selected={l.id === selectedId}
-                onSelect={() => setSelectedId(l.id)}
+                onSelect={() => selectHome(l.id, false)}
               />
             ))}
           </div>
