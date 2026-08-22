@@ -11,6 +11,11 @@ import {
   pointInRing,
   type IsochroneMap,
 } from "./isochrone";
+import {
+  paintAddressHalos,
+  scoreRgba,
+  type AddressHeatSample,
+} from "./addressHeatmap";
 
 /** South Bay coverage for the suitability raster (lat/lng). */
 export const SUITABILITY_BOUNDS = {
@@ -365,7 +370,8 @@ export function scoreHeatmapCell(
       ocean = clamp((cell.oceanProxy / minView) * 40, 0, 40);
     }
   } else {
-    ocean = 40 + cell.oceanProxy * 0.35;
+    // Strong spread so Strand / open-wedge lots pop vs blocked second-row
+    ocean = 12 + cell.oceanProxy * 0.88;
   }
 
   const minAir = criteria.minAirQualityScore ?? 0;
@@ -391,13 +397,14 @@ export function scoreHeatmapCell(
     air = 40 + cell.airQualityScore * 0.4;
   }
 
-  // Weights mirror location-ish parts of scoreListing
-  const oceanW = minView > 0 ? 0.26 : 0.11;
-  const driveW = 0.26;
-  const noiseW = 0.13;
-  const safetyW = 0.14;
-  const walkW = 0.13;
-  const airW = minAir > 0 ? 0.14 : 0.08;
+  // Ocean openness is a first-class location signal (Strand should outshine
+  // a blocked lot a block inland). Drive stays important for commute fit.
+  const oceanW = minView > 0 ? 0.28 : 0.26;
+  const driveW = 0.22;
+  const noiseW = 0.12;
+  const safetyW = 0.13;
+  const walkW = 0.14;
+  const airW = minAir > 0 ? 0.12 : 0.07;
   const rest = driveW + noiseW + safetyW + walkW + oceanW + airW;
   const score =
     (drive * driveW +
@@ -661,4 +668,94 @@ export function paintOceanViewshedHeatmap(
     rows,
     peakMean: peakN ? peakSum / peakN : 0,
   };
+}
+
+/** Build a location cell from a listing’s baked analysis (address-exact). */
+export function listingLocationCell(
+  listing: Listing,
+  anchors: Anchor[],
+): HeatmapCellBase {
+  const driveMins = {} as Record<AnchorId, number>;
+  const baked = listing.analysis?.driveMinutes;
+  for (const a of anchors) {
+    const fromAnalysis = baked?.[a.id];
+    driveMins[a.id] =
+      typeof fromAnalysis === "number" && fromAnalysis < 90
+        ? fromAnalysis
+        : estimateDriveMinutes(listing.lat, listing.lng, a.lat, a.lng);
+  }
+  const ov = listing.analysis?.oceanViewshed;
+  const oceanProxy =
+    ov && typeof ov.score100 === "number" && !/unavailable|pending rebake/i.test(ov.summary || "")
+      ? ov.score100
+      : oceanProxyAt(listing.lat, listing.lng, []);
+
+  return {
+    lat: listing.lat,
+    lng: listing.lng,
+    noiseCnel:
+      typeof listing.noiseCnel === "number"
+        ? listing.noiseCnel
+        : estimateNoiseCnel(listing.lat, listing.lng),
+    safetyScore: listing.analysis?.safetyScore ?? 62,
+    walkIndex: listing.analysis?.walkIndex ?? 10,
+    airQualityScore:
+      listing.analysis?.airQualityScore ??
+      listing.analysis?.airQuality?.airQualityScore ??
+      35,
+    oceanProxy,
+    driveMins,
+  };
+}
+
+/** Location-only fit 0–100 at a specific listing address. */
+export function scoreListingLocation(
+  listing: Listing,
+  criteria: Criteria,
+  anchors: Anchor[],
+  isochrones?: IsochroneMap,
+): number {
+  return scoreHeatmapCell(
+    listingLocationCell(listing, anchors),
+    criteria,
+    anchors,
+    isochrones,
+  );
+}
+
+/**
+ * Best-areas map: one halo per listing address (not a neighborhood wash).
+ * High ocean-view lots (e.g. The Strand) read as bright peaks next to blocked neighbors.
+ */
+export function paintAddressSuitabilityHeatmap(
+  listings: Listing[],
+  criteria: Criteria,
+  anchors: Anchor[],
+  isochrones?: IsochroneMap,
+): SuitabilityRaster {
+  const samples: AddressHeatSample[] = [];
+  for (const l of listings) {
+    if (!Number.isFinite(l.lat) || !Number.isFinite(l.lng)) continue;
+    const score = scoreListingLocation(l, criteria, anchors, isochrones);
+    // Skip dull lots so the map is peaks, not a mid-score smear
+    if (score < 55) continue;
+    samples.push({ lat: l.lat, lng: l.lng, score });
+  }
+
+  return paintAddressHalos(samples, suitabilityHaloRgba, {
+    // Weak fits: tight; Strand-class: larger bright discs
+    radiusKm: (score) => (score >= 80 ? 0.18 : score >= 70 ? 0.12 : 0.07),
+    cols: 800,
+    rows: 600,
+  });
+}
+
+/** Steep alpha: mid fits stay faint; Strand-class scores blaze. */
+export function suitabilityHaloRgba(
+  score: number,
+): [number, number, number, number] {
+  const t = clamp((score - 52) / 40, 0, 1); // 52→0, 92→1
+  const a = Math.round(Math.pow(t, 1.45) * 255);
+  const [r, g, b] = scoreRgba(score);
+  return [r, g, b, a];
 }
