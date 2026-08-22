@@ -17,6 +17,7 @@
     "ingest:sereno-stubs": "SERENO_ENRICH_STUBS_ONLY=1 node scripts/scrape-sereno-areas.mjs",
     "ingest:status": "node scripts/sync-sereno-status.mjs",
     "ingest:condition": "tsx scripts/enrich-listing-condition.mts",
+    "ingest:noise": "tsx scripts/rebake-noise.mts",
     "ingest:air": "node scripts/enrich-listing-air.mjs",
     "ingest:redfin": "node scripts/scrape-redfin-market.mjs",
     "ingest:all": "node scripts/ingest-all.mjs",
