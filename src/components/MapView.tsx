@@ -3,6 +3,7 @@ import {
   MapContainer,
   Marker,
   Polygon,
+  Polyline,
   Popup,
   TileLayer,
   Tooltip,
@@ -13,7 +14,7 @@ import { LAX_NOISE_POLYGONS } from "../data/laxNoise";
 import type { SafetyTractsFile } from "../data/safetyTiers";
 import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { IsochroneMap } from "../hooks/useIsochrones";
-import { exteriorRings } from "../lib/isochrone";
+import { exteriorRings, inlandIsochronePaths } from "../lib/isochrone";
 import { isPendingSaleStatus, pendingSaleLabel } from "../lib/listingStatus";
 import { isPropertyListingUrl } from "../lib/listingUrl";
 import {
@@ -268,26 +269,25 @@ export function MapView({
         anchors.flatMap((a) => {
           const feature = isochrones[a.id];
           if (!feature) return [];
-          return exteriorRings(feature).map((ring, idx) => (
-            <Polygon
-              key={`iso-${a.id}-${idx}`}
-              positions={ring.map(
-                ([lng, lat]) => [lat, lng] as [number, number],
-              )}
-              pathOptions={{
-                color: a.color,
-                fill: false,
-                fillOpacity: 0,
-                weight: 2,
-                opacity: 0.85,
-                dashArray: "5 7",
-              }}
-            >
-              <Tooltip sticky>
-                {a.label} — {String(feature.properties.minutes)} min
-              </Tooltip>
-            </Polygon>
-          ));
+          // Inland edges only — hide the beach-hugging outline
+          return exteriorRings(feature).flatMap((ring, idx) =>
+            inlandIsochronePaths(ring).map((positions, pIdx) => (
+              <Polyline
+                key={`iso-${a.id}-${idx}-${pIdx}`}
+                positions={positions}
+                pathOptions={{
+                  color: a.color,
+                  weight: 2,
+                  opacity: 0.85,
+                  dashArray: "5 7",
+                }}
+              >
+                <Tooltip sticky>
+                  {a.label} — {String(feature.properties.minutes)} min
+                </Tooltip>
+              </Polyline>
+            )),
+          );
         })}
 
       {anchors.map((a) => (

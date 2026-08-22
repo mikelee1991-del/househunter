@@ -1,4 +1,6 @@
 import type { Anchor, AnchorId } from "../types";
+import { SOUTH_BAY_COASTLINE } from "../data/southBayCoastline";
+import { haversineKm } from "./geo";
 
 /**
  * Real drive-time isochrones via Valhalla (same engine as SimpleMapLab)
@@ -90,6 +92,80 @@ export function pointInIsochrone(
   feature?: PolygonFeature,
 ): boolean {
   return exteriorRings(feature).some((ring) => pointInRing(lng, lat, ring));
+}
+
+/** Distance from a point to the densified South Bay shoreline (km). */
+function nearestShoreKm(lat: number, lng: number): number {
+  let best = Infinity;
+  for (const [clng, clat] of SOUTH_BAY_COASTLINE) {
+    const d = haversineKm(lat, lng, clat, clng);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/**
+ * True when a ring vertex sits on/near the Pacific edge (or slightly offshore).
+ * Valhalla polygons hug the beach; we hide those edges so the outline doesn't
+ * redraw the shoreline.
+ */
+export function isIsochroneVertexAlongShore(
+  lat: number,
+  lng: number,
+  maxCoastKm = 0.85,
+): boolean {
+  // Ocean / marina west of a soft west bound for this map
+  if (lng < -118.48 && lat < 34.05) {
+    const shore = nearestShoreKm(lat, lng);
+    if (shore < maxCoastKm * 1.4) return true;
+  }
+  return nearestShoreKm(lat, lng) < maxCoastKm;
+}
+
+/**
+ * Split an isochrone exterior ring ([lng,lat][]) into inland-only polylines
+ * as Leaflet [lat,lng][] paths — coastal edges omitted.
+ */
+export function inlandIsochronePaths(
+  ring: [number, number][],
+  maxCoastKm = 0.85,
+): [number, number][][] {
+  if (ring.length < 2) return [];
+  const pts =
+    ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1]
+      ? ring.slice(0, -1)
+      : ring;
+  if (pts.length < 2) return [];
+
+  const inland = pts.map(
+    ([lng, lat]) => !isIsochroneVertexAlongShore(lat, lng, maxCoastKm),
+  );
+
+  // Fully inland — keep the whole outline
+  if (inland.every(Boolean)) {
+    return [pts.map(([lng, lat]) => [lat, lng] as [number, number])];
+  }
+
+  // Start after a coastal vertex so wrap-around doesn't glue two runs
+  let start = inland.findIndex((v) => !v);
+  if (start < 0) start = 0;
+
+  const paths: [number, number][][] = [];
+  let cur: [number, number][] = [];
+  for (let k = 0; k < pts.length; k++) {
+    const i = (start + k) % pts.length;
+    if (inland[i]) {
+      const [lng, lat] = pts[i];
+      cur.push([lat, lng]);
+    } else if (cur.length) {
+      if (cur.length >= 2) paths.push(cur);
+      cur = [];
+    }
+  }
+  if (cur.length >= 2) paths.push(cur);
+  return paths;
 }
 
 /** True if the point sits inside the union of any ready isochrone. */
