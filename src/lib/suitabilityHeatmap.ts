@@ -16,6 +16,7 @@ import {
   scoreRgba,
   type AddressHeatSample,
 } from "./addressHeatmap";
+import { normalizeMetricWeights } from "./metricWeights";
 
 /** South Bay coverage for the suitability raster (lat/lng). */
 export const SUITABILITY_BOUNDS = {
@@ -399,21 +400,23 @@ export function scoreHeatmapCell(
 
   // Ocean openness is a first-class location signal (Strand should outshine
   // a blocked lot a block inland). Drive stays important for commute fit.
-  const oceanW = minView > 0 ? 0.28 : 0.26;
-  const driveW = 0.22;
-  const noiseW = 0.12;
-  const safetyW = 0.13;
-  const walkW = 0.14;
-  const airW = minAir > 0 ? 0.12 : 0.07;
-  const rest = driveW + noiseW + safetyW + walkW + oceanW + airW;
+  const w = normalizeMetricWeights(
+    criteria.metricWeights ?? {
+      drive: 22,
+      noise: 12,
+      safety: 13,
+      walk: 14,
+      ocean: 26,
+      air: 7,
+    },
+  );
   const score =
-    (drive * driveW +
-      noise * noiseW +
-      safety * safetyW +
-      walk * walkW +
-      ocean * oceanW +
-      air * airW) /
-    rest;
+    drive * w.drive +
+    noise * w.noise +
+    safety * w.safety +
+    walk * w.walk +
+    ocean * w.ocean +
+    air * w.air;
 
   return clamp(score, 0, 100);
 }

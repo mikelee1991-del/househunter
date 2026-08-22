@@ -267,6 +267,12 @@ p {
   margin: 0.35rem 0 0.15rem;
 }
 
+.field-caption-inline {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .field-hint {
   margin: 0.15rem 0 0.25rem;
 }

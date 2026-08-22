@@ -84,6 +84,14 @@ export const DEFAULT_CRITERIA: Criteria = {
   },
   requireWithinAllIsochrones: true,
   neighborhoods: [],
+  metricWeights: {
+    drive: 22,
+    noise: 12,
+    safety: 13,
+    walk: 14,
+    ocean: 26,
+    air: 7,
+  },
 };
 
 export const NEIGHBORHOOD_OPTIONS = [

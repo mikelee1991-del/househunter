@@ -36,6 +36,7 @@ export type DefaultMapSignature = {
   minOceanViewshed: number;
   minAirQualityScore: number;
   requireWithinAllIsochrones: boolean;
+  metricWeights: Criteria["metricWeights"];
 };
 
 export function roundCoord(n: number): number {
@@ -60,6 +61,7 @@ export function buildDefaultMapSignature(
     minOceanViewshed: criteria.minOceanViewshed ?? 0,
     minAirQualityScore: criteria.minAirQualityScore ?? 0,
     requireWithinAllIsochrones: !!criteria.requireWithinAllIsochrones,
+    metricWeights: { ...(criteria.metricWeights ?? DEFAULT_CRITERIA.metricWeights) },
   };
 }
 
