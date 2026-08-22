@@ -71,6 +71,7 @@ export const DEFAULT_CRITERIA: Criteria = {
   excludeFixerUpper: true,
   minConditionScore: 45,
   maxNoiseCnel: 75,
+  maxTrafficCnel: 72,
   minSafetyScore: 70,
   /** Soft floor — filters only the highest pollution-burden tracts */
   minAirQualityScore: 15,
@@ -87,7 +88,8 @@ export const DEFAULT_CRITERIA: Criteria = {
   neighborhoods: [],
   metricWeights: {
     drive: 22,
-    noise: 12,
+    noise: 7,
+    traffic: 5,
     safety: 13,
     walk: 14,
     ocean: 16,

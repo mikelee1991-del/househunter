@@ -102,10 +102,10 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
       <div className="safety-legend">
         <strong>Ambient noise (area)</strong>
         <p>
-          {AREA_NOTE} LAX CNEL contours (dashed) + freeway corridors (solid;
-          PCH dashed). Wash takes the louder source, and energy-combines when
-          airport and highway are both ≥50 CNEL. Address-local quiet scores
-          sit on top at listing pins.
+          {AREA_NOTE} Combined LAX CNEL contours (dashed) + freeway/PCH
+          corridors (solid). Wash takes the louder source, and energy-combines
+          when airport and highway are both ≥50 CNEL. Separate from the Traffic
+          layer (roads only).
         </p>
         <ul>
           <li>
@@ -126,6 +126,41 @@ export function MetricLayerLegend({ layer }: { layer: MapMetricLayer }) {
           <li>
             <i style={{ background: "#c8b88a" }} />
             Quieter
+            <span>&lt;50</span>
+          </li>
+        </ul>
+      </div>
+    );
+  }
+
+  if (layer === "traffic") {
+    return (
+      <div className="safety-legend">
+        <strong>Traffic (roads)</strong>
+        <p>
+          {AREA_NOTE} Freeway and PCH corridor falloff only — no airport. A
+          quiet inland lot next to the 405 reads loud here; a Strand lot under
+          a flight path can stay green if roads are far.
+        </p>
+        <ul>
+          <li>
+            <i style={{ background: "#c0392b" }} />
+            Heavy corridor
+            <span>≥70</span>
+          </li>
+          <li>
+            <i style={{ background: "#e07a3d" }} />
+            Elevated
+            <span>60–70</span>
+          </li>
+          <li>
+            <i style={{ background: "#f0c929" }} />
+            Moderate
+            <span>50–60</span>
+          </li>
+          <li>
+            <i style={{ background: "#c8b88a" }} />
+            Away from roads
             <span>&lt;50</span>
           </li>
         </ul>

@@ -11,7 +11,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { LAX_NOISE_POLYGONS } from "../data/laxNoise";
-import { HIGHWAY_CORRIDORS, estimateNoiseCnel } from "../data/ambientNoise";
+import { HIGHWAY_CORRIDORS, estimateNoiseCnel, estimateTrafficCnel } from "../data/ambientNoise";
 import type { SafetyTractsFile } from "../data/safetyTiers";
 import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { IsochroneMap } from "../hooks/useIsochrones";
@@ -125,6 +125,10 @@ function listingMetricScore(
           estimateNoiseCnel(listing.lat, listing.lng) || listing.noiseCnel,
         ),
       );
+    case "traffic":
+      return Math.round(
+        quietScoreFromCnel(estimateTrafficCnel(listing.lat, listing.lng)),
+      );
     default:
       return null;
   }
@@ -214,6 +218,7 @@ export function MapView({
   const selected = listings.find((l) => l.id === selectedId);
   const showSuitability = metricLayer === "suitability";
   const showNoise = metricLayer === "noise";
+  const showTraffic = metricLayer === "traffic";
   const showOcean = metricLayer === "ocean";
   const showSunset = metricLayer === "sunset";
   const showCondition = metricLayer === "condition";
@@ -222,14 +227,19 @@ export function MapView({
   const showWalk = metricLayer === "walk";
   // Tract / neighborhood choropleth (sharp edges, not stair-step raster).
   const showTractMetric = showSafety || showAir || showWalk;
-  // Continuous field wash — noise only (road/CNEL model; fast direct paint).
-  const showAreaMetric = showNoise;
-  // Address-local halos: condition; ocean/sunset/noise/walk overlays.
+  // Continuous field washes — ambient noise + road-only traffic.
+  const showAreaMetric = showNoise || showTraffic;
+  // Address-local halos: condition; ocean/sunset/noise/traffic/walk overlays.
   const showAddressHeat =
-    showCondition || showOcean || showSunset || showNoise || showWalk;
-  // Tint pins for condition so scores read without relying on a wash.
+    showCondition ||
+    showOcean ||
+    showSunset ||
+    showNoise ||
+    showTraffic ||
+    showWalk;
+  // Tint pins for condition / noise / traffic so scores read without relying on wash.
   const pinMetricLayer: MapMetricLayer =
-    showCondition || showNoise ? metricLayer : "off";
+    showCondition || showNoise || showTraffic ? metricLayer : "off";
 
   return (
     <MapContainer
@@ -276,7 +286,7 @@ export function MapView({
         listings={allListings}
       />
 
-      {/* Continuous noise wash — high-res direct CNEL paint */}
+      {/* Continuous noise / traffic wash — high-res direct CNEL paint */}
       <ContinuousMetricHeatLayer
         enabled={showAreaMetric}
         metric={metricLayer as AreaMetricId}
@@ -287,7 +297,7 @@ export function MapView({
         airTracts={airTracts}
       />
 
-      {/* Address-local detail (condition; ocean/sunset/noise/walk overlays) */}
+      {/* Address-local detail (condition; ocean/sunset/noise/traffic/walk) */}
       <AddressMetricHeatLayer
         enabled={showAddressHeat}
         metric={
@@ -299,9 +309,11 @@ export function MapView({
                 ? "sunset"
                 : showNoise
                   ? "noise"
-                  : showWalk
-                    ? "walk"
-                    : "condition"
+                  : showTraffic
+                    ? "traffic"
+                    : showWalk
+                      ? "walk"
+                      : "condition"
         }
         listings={allListings}
       />
@@ -314,7 +326,7 @@ export function MapView({
         mode={showSunset ? "sunset" : "ocean"}
       />
 
-      {showNoise &&
+      {(showNoise || showTraffic) &&
         HIGHWAY_CORRIDORS.map((road) => (
           <Polyline
             key={`hwy-${road.id}`}

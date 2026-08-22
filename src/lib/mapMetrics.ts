@@ -10,6 +10,7 @@ export type MapMetricLayer =
   | "sunset"
   | "condition"
   | "noise"
+  | "traffic"
   | "suitability";
 
 export const MAP_METRIC_OPTIONS: { id: MapMetricLayer; label: string }[] = [
@@ -21,10 +22,11 @@ export const MAP_METRIC_OPTIONS: { id: MapMetricLayer; label: string }[] = [
   { id: "sunset", label: "Sunset view" },
   { id: "condition", label: "Condition" },
   { id: "noise", label: "Quiet (noise)" },
+  { id: "traffic", label: "Traffic" },
   { id: "suitability", label: "Best areas" },
 ];
 
-/** Quieter → higher. 40 CNEL ≈ 100, 80 CNEL ≈ 0. */
+/** Quieter / less traffic → higher. 40 CNEL ≈ 100, 80 CNEL ≈ 0. */
 export function quietScoreFromCnel(cnel: number): number {
   return Math.max(0, Math.min(100, ((80 - cnel) / 40) * 100));
 }

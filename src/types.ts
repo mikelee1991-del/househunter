@@ -16,6 +16,8 @@ export interface Anchor {
 export type MetricWeights = {
   drive: number;
   noise: number;
+  /** Road-corridor exposure (freeways / PCH) — separate from ambient CNEL. */
+  traffic: number;
   safety: number;
   walk: number;
   ocean: number;
@@ -66,7 +68,16 @@ export interface Criteria {
    * 0 = off. ~50 is “not a project”; ~70 prefers updated/turnkey language.
    */
   minConditionScore: number;
+  /**
+   * Max combined ambient CNEL (LAX contours ∪ highway corridors).
+   * Airport-heavy lots can fail this without failing traffic.
+   */
   maxNoiseCnel: number;
+  /**
+   * Max road-corridor CNEL proxy (freeways / PCH only — no airport).
+   * “I don’t want to live next to the 405” without rejecting quiet LAX-adjacent lots.
+   */
+  maxTrafficCnel: number;
   /** Minimum neighborhood safety score 0–100 (higher = safer / lower crime) */
   minSafetyScore: number;
   /**
@@ -84,7 +95,8 @@ export interface Criteria {
   neighborhoods: string[];
   /**
    * Relative weights for Best areas / location fit (any positive scale;
-   * normalized when scoring). Keys: drive, noise, safety, walk, ocean, sunset, air.
+   * normalized when scoring). Keys: drive, noise, traffic, safety, walk,
+   * ocean, sunset, air.
    */
   metricWeights: MetricWeights;
 }

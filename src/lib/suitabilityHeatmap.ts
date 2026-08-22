@@ -1,4 +1,4 @@
-import { estimateNoiseCnel } from "../data/ambientNoise";
+import { estimateNoiseCnel, estimateTrafficCnel } from "../data/ambientNoise";
 import { NEIGHBORHOOD_LIVABILITY } from "../data/neighborhoodLivability";
 import { SOUTH_BAY_COASTLINE } from "../data/southBayCoastline";
 import type { SafetyTractsFile } from "../data/safetyTiers";
@@ -49,6 +49,8 @@ export interface HeatmapCellBase {
   lat: number;
   lng: number;
   noiseCnel: number;
+  /** Road-corridor CNEL only (no airport). */
+  trafficCnel: number;
   safetyScore: number;
   walkIndex: number;
   airQualityScore: number;
@@ -425,6 +427,7 @@ export function buildHeatmapBase(
         lat,
         lng,
         noiseCnel: estimateNoiseCnel(lat, lng),
+        trafficCnel: estimateTrafficCnel(lat, lng),
         safetyScore: liv.safetyScore,
         walkIndex: liv.walkIndex,
         airQualityScore: airAt(lat, lng, airList, airIndex),
@@ -500,6 +503,15 @@ export function scoreHeatmapCell(
       0,
       55,
     );
+  }
+
+  const maxTraffic = criteria.maxTrafficCnel ?? 72;
+  let traffic: number;
+  if (cell.trafficCnel <= maxTraffic) {
+    traffic =
+      70 + clamp((maxTraffic - cell.trafficCnel) / 20, 0, 1) * 30;
+  } else {
+    traffic = clamp(55 - (cell.trafficCnel - maxTraffic) * 4, 0, 55);
   }
 
   let safety: number;
@@ -600,7 +612,8 @@ export function scoreHeatmapCell(
   const w = normalizeMetricWeights(
     criteria.metricWeights ?? {
       drive: 22,
-      noise: 12,
+      noise: 7,
+      traffic: 5,
       safety: 13,
       walk: 14,
       ocean: 16,
@@ -611,6 +624,7 @@ export function scoreHeatmapCell(
   const score =
     drive * w.drive +
     noise * w.noise +
+    traffic * w.traffic +
     safety * w.safety +
     walk * w.walk +
     ocean * w.ocean +
@@ -906,6 +920,7 @@ export function listingLocationCell(
       typeof listing.noiseCnel === "number"
         ? listing.noiseCnel
         : estimateNoiseCnel(listing.lat, listing.lng),
+    trafficCnel: estimateTrafficCnel(listing.lat, listing.lng),
     safetyScore: listing.analysis?.safetyScore ?? 62,
     walkIndex: listing.analysis?.walkIndex ?? 10,
     airQualityScore:

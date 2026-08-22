@@ -5,7 +5,7 @@
  * Caches the expensive tract PIP grid + painted rasters so switching map
  * metrics stays responsive.
  */
-import { estimateNoiseCnel } from "../data/ambientNoise";
+import { estimateNoiseCnel, estimateTrafficCnel } from "../data/ambientNoise";
 import type { SafetyTractsFile } from "../data/safetyTiers";
 import type { AirQualityTractsFile } from "../hooks/useAirQualityTracts";
 import type { Anchor, Listing } from "../types";
@@ -264,6 +264,8 @@ export function paintAreaMetricHeatmap(
   if (metric === "noise") {
     // Direct CNEL sampling — ~1s at 320×240; skip expensive tract PIP base.
     raster = paintNoiseAreaDirect(anchors, isochrones, AREA_COLS, AREA_ROWS);
+  } else if (metric === "traffic") {
+    raster = paintTrafficAreaDirect(anchors, isochrones, AREA_COLS, AREA_ROWS);
   } else {
   const cells = getCachedHeatmapBase(
     listings,
@@ -378,6 +380,37 @@ export function paintNoiseAreaDirect(
   cols = AREA_COLS,
   rows = AREA_ROWS,
 ): SuitabilityRaster {
+  return paintCnelAreaDirect(
+    (lat, lng) => estimateNoiseCnel(lat, lng),
+    anchors,
+    isochrones,
+    cols,
+    rows,
+  );
+}
+
+export function paintTrafficAreaDirect(
+  anchors: Anchor[],
+  isochrones: IsochroneMap | undefined,
+  cols = AREA_COLS,
+  rows = AREA_ROWS,
+): SuitabilityRaster {
+  return paintCnelAreaDirect(
+    (lat, lng) => estimateTrafficCnel(lat, lng),
+    anchors,
+    isochrones,
+    cols,
+    rows,
+  );
+}
+
+function paintCnelAreaDirect(
+  cnelAt: (lat: number, lng: number) => number,
+  anchors: Anchor[],
+  isochrones: IsochroneMap | undefined,
+  cols = AREA_COLS,
+  rows = AREA_ROWS,
+): SuitabilityRaster {
   const { south, west, north, east } = SUITABILITY_BOUNDS;
   const canvas = document.createElement("canvas");
   canvas.width = cols;
@@ -410,7 +443,7 @@ export function paintNoiseAreaDirect(
         img.data[px + 3] = 0;
         continue;
       }
-      const quiet = quietScoreFromCnel(estimateNoiseCnel(lat, lng));
+      const quiet = quietScoreFromCnel(cnelAt(lat, lng));
       const [r, g, b, a] = quietRgba(quiet);
       img.data[px] = r;
       img.data[px + 1] = g;

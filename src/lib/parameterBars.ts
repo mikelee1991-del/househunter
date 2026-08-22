@@ -1,3 +1,4 @@
+import { estimateTrafficCnel } from "../data/ambientNoise";
 import type { Anchor, Criteria, ScoredListing } from "../types";
 
 export type ParameterBarKind = "min" | "max" | "band" | "target" | "none";
@@ -158,8 +159,23 @@ export function buildParameterBars(
     threshold: quietThreshold(criteria.maxNoiseCnel),
     kind: "min",
     ok: listing.noiseCnel <= criteria.maxNoiseCnel,
-    detail: `Max ${criteria.maxNoiseCnel} CNEL (airport + highway)`,
+    detail: `Max ${criteria.maxNoiseCnel} CNEL ambient (LAX + roads)`,
   });
+
+  {
+    const trafficCnel = estimateTrafficCnel(listing.lat, listing.lng);
+    const maxTraffic = criteria.maxTrafficCnel ?? 72;
+    bars.push({
+      id: "traffic",
+      label: "Traffic",
+      valueLabel: trafficCnel <= 42 ? "Low" : `~${trafficCnel} CNEL`,
+      fill: quietScore(Math.max(trafficCnel, 40)),
+      threshold: quietThreshold(maxTraffic),
+      kind: "min",
+      ok: trafficCnel <= maxTraffic,
+      detail: `Max ${maxTraffic} CNEL roads only (no airport)`,
+    });
+  }
 
   const budgetFill =
     listing.price <= criteria.budgetMax
